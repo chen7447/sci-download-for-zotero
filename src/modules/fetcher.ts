@@ -6,12 +6,23 @@ const PDF_NOT_FOUND_REGEXES = [
   /статья не найдена в базе/im,
 ];
 
+export interface FindPDFResult {
+  url: string | null;
+  /** per-mirror status, aligned with the input mirrors array */
+  statuses: ("untested" | "failed" | "success")[];
+}
+
 export class SciDownloadFetcher {
   /**
-   * Try mirrors in order. Return the first PDF URL found, or null.
+   * Try mirrors in order. Return the first PDF URL found, or null,
+   * plus per-mirror status for UI feedback.
    */
-  static async findPDFUrl(doi: string, mirrors: string[]): Promise<string | null> {
-    for (const base of mirrors) {
+  static async findPDFUrl(doi: string, mirrors: string[]): Promise<FindPDFResult> {
+    const statuses: ("untested" | "failed" | "success")[] =
+      new Array(mirrors.length).fill("untested");
+
+    for (let i = 0; i < mirrors.length; i++) {
+      const base = mirrors[i];
       try {
         const url = base.endsWith("/") ? `${base}${doi}` : `${base}/${doi}`;
         ztoolkit.log(`SciDownload: trying ${url}`);
@@ -24,7 +35,10 @@ export class SciDownloadFetcher {
           },
         });
 
-        if (resp.status !== 200) continue;
+        if (resp.status !== 200) {
+          statuses[i] = "failed";
+          continue;
+        }
 
         // Try to extract PDF URL from #pdf iframe
         if (resp.responseXML) {
@@ -35,7 +49,8 @@ export class SciDownloadFetcher {
             const pdfUrl = new URL(pdfSrc, url);
             pdfUrl.protocol = "https:";
             pdfUrl.hash = ""; // strip fragment like #view=FitH
-            return pdfUrl.href;
+            statuses[i] = "success";
+            return { url: pdfUrl.href, statuses };
           }
         }
 
@@ -43,17 +58,19 @@ export class SciDownloadFetcher {
         const body = resp.responseXML?.querySelector("body");
         if (body && this.pdfNotAvailable(body)) {
           ztoolkit.log(`SciDownload: PDF not available at ${url}`);
+          statuses[i] = "failed";
           continue;
         }
 
-        // If response is already a PDF (content-type check), return the URL
-        // ponytail: skip content-type check, just try next mirror
+        // Reached here: response OK but no PDF found → mark failed
+        statuses[i] = "failed";
       } catch (err) {
         ztoolkit.log(`SciDownload: mirror ${base} failed:`, err);
+        statuses[i] = "failed";
         continue;
       }
     }
-    return null;
+    return { url: null, statuses };
   }
 
   /**

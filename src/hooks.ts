@@ -1,6 +1,7 @@
 import { createZToolkit } from "./utils/ztoolkit";
 import { getString, initLocale } from "./utils/locale";
 import { installToolbarButton, uninstallToolbarButton } from "./modules/dialog";
+import { registerReaderToolbar, unregisterReaderToolbar } from "./modules/reader-toolbar";
 import { setMirrors, getDefaultMirrors, getTargetCollectionId, setTargetCollectionId } from "./modules/prefs";
 
 async function onStartup() {
@@ -22,6 +23,8 @@ async function onStartup() {
     Zotero.getMainWindows().map((win) => onMainWindowLoad(win)),
   );
 
+  registerReaderToolbar();
+
   addon.data.initialized = true;
 }
 
@@ -39,6 +42,7 @@ async function onMainWindowUnload(win: Window): Promise<void> {
 
 function onShutdown(): void {
   uninstallToolbarButton();
+  unregisterReaderToolbar();
   ztoolkit.unregisterAll();
   addon.data.dialog?.window?.close();
   addon.data.alive = false;

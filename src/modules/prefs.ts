@@ -15,24 +15,36 @@ export function clearPref(key: string) {
 }
 
 // ── Sci-Hub mirror sites ──
+// Bump DEFAULT_MIRRORS_VERSION whenever DEFAULT_MIRRORS changes.
+// getMirrors() detects the mismatch and merges new defaults in.
 
 const DEFAULT_MIRRORS = [
-  "https://sci-hub.se/",
-  "https://sci-hub.st/",
-  "https://sci-hub.ru/",
+  "https://www.sci-hub.se",
+  "https://www.sci-hub.st",
+  "https://www.sci-hub.ru",
   "https://sci-hub.ee/",
   "https://sci-hub.ren/",
+  "https://www.sci-hub.wf/",
+  "https://www.sci-hub.yt/",
+  "https://www.wellesu.com",
+  "https://www.tesble.com",
+  "https://www.et-fine.com",
 ];
+const DEFAULT_MIRRORS_VERSION = 3;
 
 export function getMirrors(): string[] {
   const raw = getPref("mirrors") as string | undefined;
-  if (!raw) return [...DEFAULT_MIRRORS];
-  try {
-    const arr = JSON.parse(raw);
-    return Array.isArray(arr) && arr.length > 0 ? arr : [...DEFAULT_MIRRORS];
-  } catch {
-    return [...DEFAULT_MIRRORS];
+  const existing = safeParseMirrors(raw); // null = unset/invalid
+  const ver = getPref("mirrorsVersion") as number | undefined;
+
+  // First run / parse failure / defaults changed → merge defaults in
+  if (existing === null || ver !== DEFAULT_MIRRORS_VERSION) {
+    const merged = mergeMirrors(DEFAULT_MIRRORS, existing ?? []);
+    setPref("mirrors", JSON.stringify(merged));
+    setPref("mirrorsVersion", DEFAULT_MIRRORS_VERSION);
+    return merged;
   }
+  return existing;
 }
 
 export function setMirrors(mirrors: string[]) {
@@ -40,11 +52,36 @@ export function setMirrors(mirrors: string[]) {
 }
 
 export function resetMirrors() {
+  setPref("mirrorsVersion", DEFAULT_MIRRORS_VERSION);
   setMirrors(DEFAULT_MIRRORS);
 }
 
 export function getDefaultMirrors(): string[] {
   return [...DEFAULT_MIRRORS];
+}
+
+// ponytail: Set dedupe by trimmed URL, defaults first, user entries kept
+function mergeMirrors(defaults: string[], existing: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const url of [...defaults, ...existing]) {
+    const key = url.trim();
+    if (key && !seen.has(key)) {
+      seen.add(key);
+      out.push(url);
+    }
+  }
+  return out;
+}
+
+function safeParseMirrors(raw: string | undefined): string[] | null {
+  if (raw === undefined || raw === null) return null;
+  try {
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr : null;
+  } catch {
+    return null;
+  }
 }
 
 // ── Target collection ──

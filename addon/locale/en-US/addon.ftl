@@ -1,6 +1,15 @@
 prefs-title = Sci-Download
 dialog-title = Sci-Download PDF Download
-dialog-doi-label = DOI:
+dialog-extract-placeholder = Enter DOI / PMID / title (e.g. 10.xxxx/xxxx or a title)
+dialog-extract = Extract Literature Info
+dialog-extract-tip = Enter DOI, PMID, or title — other fields are auto-filled (data from CrossRef / PubMed)
+dialog-extract-empty = Enter a DOI, PMID, or paper title
+dialog-extracting = Identifying and extracting literature info...
+dialog-extract-ok = Literature info extracted. Verify, then click "Search & Download".
+dialog-extract-fail = Could not identify the literature from this input. Check and retry.
+dialog-title-label = Title:
+dialog-info-label = Info:
+dialog-doi-label = DOI
 dialog-doi-placeholder = Enter DOI, e.g. 10.xxxx/xxxx
 dialog-doi-help = How to find a DOI
 dialog-search = Search & Download

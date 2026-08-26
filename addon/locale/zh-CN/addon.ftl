@@ -1,6 +1,15 @@
 prefs-title = Sci-Download
 dialog-title = Sci-Download PDF 下载
-dialog-doi-label = DOI:
+dialog-extract-placeholder = 输入 DOI / PMID / 标题（如 10.xxxx/xxxx 或文献标题）
+dialog-extract = 智能提取文献信息
+dialog-extract-tip = 输入 DOI、PMID 或标题任意一项，自动识别并提取其它信息（数据来源：CrossRef / PubMed）
+dialog-extract-empty = 请输入 DOI、PMID 或文献标题
+dialog-extracting = 正在识别并提取文献信息...
+dialog-extract-ok = 已提取文献信息，请核对后点击「搜索并下载」
+dialog-extract-fail = 未能识别该输入对应的文献信息，请检查后重试
+dialog-title-label = 标题:
+dialog-info-label = 信息:
+dialog-doi-label = DOI
 dialog-doi-placeholder = 输入 DOI，如 10.xxxx/xxxx
 dialog-doi-help = 查看如何查找 DOI
 dialog-search = 搜索并下载

@@ -1,9 +1,9 @@
 # Sci-Download For Zotero
 
 [![Zotero 7+](https://img.shields.io/badge/Zotero-7+-green?style=flat-square&logo=zotero&logoColor=CC2936)](https://www.zotero.org)
-[![Version](https://img.shields.io/github/v/release/chen7447/sci-download-for-zotero?style=flat-square)](https://github.com/chen7447/sci-download-for-zotero/releases)
+[![Version](https://img.shields.io/github/v/release/your-username/zotero-scidownload?style=flat-square)](https://github.com/your-username/zotero-scidownload/releases)
 
-**Sci-Download** 是一个 Zotero 7 插件，允许你通过 Sci-Hub 镜像站手动输入 DOI 来搜索并下载 PDF。
+**Sci-Download** 是一个 Zotero 7+ 插件，允许你通过 Sci-Hub 镜像站手动输入 DOI 来搜索并下载 PDF。
 
 ## 功能
 
@@ -17,7 +17,7 @@
 
 ## 安装
 
-1. 下载 [最新版插件](https://github.com/chen7447/sci-download-for-zotero/releases/latest/download/sci-download.xpi)
+1. 下载 [最新版插件](https://github.com/your-username/zotero-scidownload/releases/latest/download/sci-download.xpi)
 2. 在 Zotero 中打开 **工具 → 附加组件**
 3. 将下载的 `.xpi` 文件拖入附加组件窗口
 4. 重启 Zotero
@@ -31,7 +31,7 @@
 ### 搜索并下载
 
 1. 点击工具栏按钮，打开下载面板
-2. 输入 DOI 
+2. 输入 DOI
 3. 选择目标分类（可选，默认归入"我的文库"）
 4. 点击 **搜索并下载**
 5. 等待进度条完成

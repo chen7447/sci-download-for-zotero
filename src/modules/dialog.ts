@@ -1,7 +1,8 @@
 import { config } from "../../package.json";
 import { getString } from "../utils/locale";
-import { SciDownloadFetcher } from "./fetcher";
+import { SciDownloadFetcher, FindPDFResult } from "./fetcher";
 import { lookupCrossRef } from "./crossref";
+import { smartExtract, ExtractedMeta } from "./metadata";
 import {
   getMirrors,
   setMirrors,
@@ -12,10 +13,11 @@ import {
 
 let _button: Element | null = null;
 let _dialogOpen = false;
-let _styleInjected = false;
+// ponytail: styles are per-document; track injected documents, not a single flag
+const _styledDocs = new WeakSet<Document>();
 
 const DOI_REGEX = /^10\.\d{4,9}\/[-._;()\/:a-zA-Z0-9]+$/;
-const ICON_URI = `chrome://${config.addonRef}/content/icons/download.svg`;
+export const ICON_URI = `chrome://${config.addonRef}/content/icons/download.svg`;
 
 const HTML_NS = "http://www.w3.org/1999/xhtml";
 
@@ -131,26 +133,21 @@ export function uninstallToolbarButton() {
 
 // ── Dialog ──
 
-function showDialog(win: Window) {
+export function showDialog(win: Window, initialDOI?: string) {
   dbg(`showDialog start, open=${_dialogOpen}`);
-  if (_dialogOpen) {
-    const existing = win.document.getElementById("scidownload-overlay");
-    if (existing) {
-      dbg("dialog already open");
-      return;
-    }
-    dbg("stale open flag, reset");
-    _dialogOpen = false;
-  }
+  // Single-instance guard is per-window: remove any leftover overlay in THIS
+  // window, so stale cross-window state never blocks a fresh open.
+  _dialogOpen = false;
+  win.document.getElementById("scidownload-overlay")?.remove();
   _dialogOpen = true;
   const doc = win.document;
   const isDark =
     doc.documentElement?.classList.contains("theme-dark") ||
     (win.matchMedia?.("(prefers-color-scheme: dark)")?.matches ?? false);
 
-  if (!_styleInjected) {
+  if (!_styledDocs.has(doc)) {
     injectDialogStyles(doc);
-    _styleInjected = true;
+    _styledDocs.add(doc);
   }
 
   const s = getString;
@@ -165,8 +162,52 @@ function showDialog(win: Window) {
   hdr.appendChild(closeBtn);
   dialog.appendChild(hdr);
 
+  // Smart extract row: DOI / PMID / title input + extract button
+  const extractRow = h(doc, "div", { class: "scid-row scid-extract-row" });
+  const extractInput = h(doc, "input", {
+    id: "scid-extract",
+    type: "text",
+    placeholder: s("dialog-extract-placeholder"),
+    class: "scid-input",
+  }) as HTMLInputElement;
+  extractRow.appendChild(extractInput);
+  const extractBtn = h(doc, "button", {
+    id: "scid-extract-btn",
+    class: "scid-btn-extract",
+    type: "button",
+  }, s("dialog-extract")) as HTMLButtonElement;
+  extractRow.appendChild(extractBtn);
+  dialog.appendChild(extractRow);
+  dialog.appendChild(h(doc, "div", { class: "scid-extract-tip" }, s("dialog-extract-tip")));
+
+  // Filled fields from extraction
+  const titleRow = h(doc, "div", { class: "scid-row" });
+  titleRow.appendChild(h(doc, "label", { for: "scid-title" }, s("dialog-title-label")));
+  const titleInput = h(doc, "input", {
+    id: "scid-title",
+    type: "text",
+    class: "scid-input",
+    readonly: "",
+  }) as HTMLInputElement;
+  titleRow.appendChild(titleInput);
+  dialog.appendChild(titleRow);
+
+  const infoRow = h(doc, "div", { class: "scid-row" });
+  infoRow.appendChild(h(doc, "label", { for: "scid-info" }, s("dialog-info-label")));
+  const infoInput = h(doc, "input", {
+    id: "scid-info",
+    type: "text",
+    class: "scid-input",
+    readonly: "",
+  }) as HTMLInputElement;
+  infoRow.appendChild(infoInput);
+  dialog.appendChild(infoRow);
+
   const doiRow = h(doc, "div", { class: "scid-row" });
-  doiRow.appendChild(h(doc, "label", { for: "scid-doi" }, s("dialog-doi-label")));
+  const doiLabel = h(doc, "label", { for: "scid-doi" }, s("dialog-doi-label"));
+  const reqStar = h(doc, "span", { class: "scid-req" }, "*");
+  doiLabel.appendChild(reqStar);
+  doiRow.appendChild(doiLabel);
   const doiInput = h(doc, "input", {
     id: "scid-doi",
     type: "text",
@@ -174,6 +215,7 @@ function showDialog(win: Window) {
     class: "scid-input",
   }) as HTMLInputElement;
   doiRow.appendChild(doiInput);
+  if (initialDOI) doiInput.value = initialDOI;
   const doiHelp = h(doc, "button", {
     class: "scid-help",
     type: "button",
@@ -189,16 +231,13 @@ function showDialog(win: Window) {
     class: "scid-input",
   }) as HTMLSelectElement;
   colRow.appendChild(collectionSelect);
-  dialog.appendChild(colRow);
-
-  const searchWrap = h(doc, "div", { class: "scid-search-wrap" });
   const searchBtn = h(doc, "button", {
     id: "scid-search",
     class: "scid-btn-primary",
     type: "button",
   }, s("dialog-search")) as HTMLButtonElement;
-  searchWrap.appendChild(searchBtn);
-  dialog.appendChild(searchWrap);
+  colRow.appendChild(searchBtn);
+  dialog.appendChild(colRow);
 
   dialog.appendChild(h(doc, "hr", { class: "scid-hr" }));
 
@@ -212,13 +251,10 @@ function showDialog(win: Window) {
   mirrorHdr.appendChild(restoreBtn);
   dialog.appendChild(mirrorHdr);
 
-  const mirrorTextarea = h(doc, "textarea", {
-    id: "scid-mirrors",
-    class: "scid-textarea",
-    rows: "6",
-    placeholder: s("dialog-mirror-placeholder"),
-  }) as HTMLTextAreaElement;
-  dialog.appendChild(mirrorTextarea);
+  const mirrorContainer = h(doc, "div", {
+    class: "scid-mirror-container",
+  });
+  dialog.appendChild(mirrorContainer);
 
   const progressWrap = h(doc, "div", { class: "scid-progress-wrap" });
   const progressBar = h(doc, "div", { id: "scid-progress-bar", class: "scid-progress-bar" });
@@ -256,20 +292,26 @@ function showDialog(win: Window) {
   });
 
   fillCollectionSelect(doc, collectionSelect);
-  mirrorTextarea.value = getMirrors().join("\n");
-  mirrorTextarea.addEventListener("change", () => saveMirrors(mirrorTextarea));
-  mirrorTextarea.addEventListener("blur", () => saveMirrors(mirrorTextarea));
+  renderMirrorList(doc, mirrorContainer, getMirrors(), () => saveMirrorValues(mirrorContainer));
   restoreBtn.addEventListener("click", () => {
-    mirrorTextarea.value = getDefaultMirrors().join("\n");
-    saveMirrors(mirrorTextarea);
+    setMirrors(getDefaultMirrors());
+    renderMirrorList(doc, mirrorContainer, getMirrors(), () => saveMirrorValues(mirrorContainer));
     setProgress(progressText, progressBar, "ok", "mirrors restored");
   });
   searchBtn.addEventListener("click", () => {
-    void onSearch(win, doiInput, collectionSelect, mirrorTextarea, progressText, progressBar, searchBtn);
+    void onSearch(win, doiInput, collectionSelect, mirrorContainer, progressText, progressBar, searchBtn);
   });
   doiInput.addEventListener("keydown", (e: KeyboardEvent) => {
     if (e.key === "Enter") {
-      void onSearch(win, doiInput, collectionSelect, mirrorTextarea, progressText, progressBar, searchBtn);
+      void onSearch(win, doiInput, collectionSelect, mirrorContainer, progressText, progressBar, searchBtn);
+    }
+  });
+  extractBtn.addEventListener("click", () => {
+    void onExtract(extractInput, titleInput, infoInput, doiInput, progressText, progressBar, extractBtn);
+  });
+  extractInput.addEventListener("keydown", (e: KeyboardEvent) => {
+    if (e.key === "Enter") {
+      void onExtract(extractInput, titleInput, infoInput, doiInput, progressText, progressBar, extractBtn);
     }
   });
   doiInput.focus();
@@ -295,11 +337,20 @@ function injectDialogStyles(doc: Document) {
 .scid-row{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
 .scid-row label{white-space:nowrap;}
 .scid-input{flex:1;padding:6px 8px;border:1px solid #999;border-radius:4px;background:#fff;color:inherit;}
+.scid-input[readonly]{background:#f5f5f5;color:#555;}
+.scid-dark .scid-input[readonly]{background:#1c1b22;color:#aaa;}
+.scid-btn-extract{flex:none;padding:7px 14px;border:none;border-radius:4px;background:#1976d2;color:#fff;cursor:pointer;font-size:13px;}
+.scid-btn-extract:hover{background:#1565c0;}
+.scid-btn-extract:disabled{opacity:0.6;}
+.scid-dark .scid-btn-extract{background:#64b5f6;color:#1c1b22;}
+.scid-extract-tip{font-size:12px;color:#888;margin:-4px 0 10px 2px;}
+.scid-dark .scid-extract-tip{color:#aaa;}
+.scid-req{color:#d32f2f;margin-left:2px;}
 .scid-help{flex:none;width:22px;height:22px;padding:0;border:1px solid #1976d2;border-radius:50%;background:#1976d2;color:#fff;cursor:pointer;font-size:13px;font-weight:700;line-height:20px;text-align:center;}
 .scid-help:hover{background:#1565c0;}
 .scid-dark .scid-help{background:#64b5f6;border-color:#64b5f6;color:#1c1b22;}
 .scid-dark .scid-input{background:#1c1b22;}
-.scid-search-wrap{display:flex;justify-content:flex-end;margin-bottom:10px;}
+
 .scid-btn-primary{padding:8px 22px;border:none;border-radius:4px;background:#2e7d32;color:#fff;cursor:pointer;font-size:14px;}
 .scid-btn-primary:disabled{opacity:0.6;}
 .scid-hr{border:none;border-top:1px solid #ddd;margin:12px 0;}
@@ -317,6 +368,19 @@ function injectDialogStyles(doc: Document) {
 .scid-footer{display:flex;justify-content:flex-end;margin-top:8px;}
 .scid-link{color:#1976d2;text-decoration:none;cursor:pointer;}
 .scid-dark .scid-link{color:#64b5f6;}
+.scid-mirror-container{max-height:200px;overflow-y:auto;border:1px solid #ccc;border-radius:4px;padding:4px;margin-bottom:8px;background:#fff;}
+.scid-dark .scid-mirror-container{background:#2d2d2d;border-color:#555;}
+.scid-mirror-row{display:flex;gap:4px;margin-bottom:4px;align-items:center;}
+.scid-mirror-input{flex:1;border:1px solid #ccc;border-radius:3px;padding:4px 6px;font-size:13px;font-family:monospace;}
+.scid-dark .scid-mirror-input{background:#3d3d3d;color:#e0e0e0;border-color:#555;}
+.scid-mirror-status{flex-shrink:0;width:22px;text-align:center;font-size:13px;font-weight:bold;font-family:monospace;}
+.scid-btn-add,.scid-btn-del{width:28px;height:28px;border:1px solid #ccc;border-radius:4px;cursor:pointer;font-size:16px;line-height:1;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.scid-btn-add{background:#e8f5e9;color:#2e7d32;border-color:#a5d6a7;}
+.scid-btn-add:hover{background:#c8e6c9;}
+.scid-dark .scid-btn-add{background:#1b5e20;color:#a5d6a7;border-color:#2e7d32;}
+.scid-btn-del{background:#ffebee;color:#c62828;border-color:#ef9a9a;}
+.scid-btn-del:hover{background:#ffcdd2;}
+.scid-dark .scid-btn-del{background:#b71c1c;color:#ef9a9a;border-color:#c62828;}
 `;
   (doc.head || doc.documentElement)!.appendChild(style);
 }
@@ -358,33 +422,173 @@ function fillCollectionSelect(doc: Document, select: HTMLSelectElement) {
   });
 }
 
-function saveMirrors(textarea: HTMLTextAreaElement) {
-  const urls = textarea.value
-    .split(/\r?\n/)
-    .map((s: string) => s.trim())
-    .filter((s: string) => s.length > 0);
+// ponytail: builtin mirrors (by URL content) are not deletable; user-added ones are
+function isDefaultMirror(url: string): boolean {
+  const v = url.trim();
+  return getDefaultMirrors().some((d) => d.trim() === v);
+}
+
+function saveMirrorValues(container: HTMLElement) {
+  const inputs = container.querySelectorAll(".scid-mirror-input");
+  const urls = Array.from(inputs)
+    .map((inp) => (inp as HTMLInputElement).value.trim())
+    .filter((s) => s.length > 0);
   setMirrors(urls);
 }
 
+function renderMirrorList(
+  doc: Document,
+  container: HTMLElement,
+  mirrors: string[],
+  onChange: () => void,
+) {
+  container.innerHTML = "";
+  const count = mirrors.length;
+  dbg(`renderMirrorList: ${count} mirrors`);
+  mirrors.forEach((mirror, i) => {
+    const row = h(doc, "div", { class: "scid-mirror-row" });
+    const input = h(doc, "input", {
+      class: "scid-mirror-input",
+      type: "text",
+      value: mirror,
+    }) as HTMLInputElement;
+    input.addEventListener("input", onChange);
+    row.appendChild(input);
+    const statusBox = doc.createElementNS(HTML_NS, "span") as HTMLElement;
+    statusBox.className = "scid-mirror-status";
+    statusBox.textContent = "[ ]";
+    const sbStyle = statusBox.style;
+    sbStyle.width = "22px";
+    sbStyle.display = "inline-block";
+    sbStyle.textAlign = "center";
+    sbStyle.fontWeight = "bold";
+    sbStyle.fontSize = "13px";
+    sbStyle.fontFamily = "monospace";
+    sbStyle.flexShrink = "0";
+    row.appendChild(statusBox);
+
+    // User-added mirrors (not matching any builtin default) are deletable
+    if (!isDefaultMirror(mirror)) {
+      const delBtn = h(doc, "button", {
+        class: "scid-btn-del",
+        type: "button",
+      }, "−");
+      delBtn.addEventListener("click", () => {
+        mirrors.splice(i, 1);
+        renderMirrorList(doc, container, mirrors, onChange);
+        onChange();
+      });
+      row.appendChild(delBtn);
+    }
+
+    // Add [+] button on the last row
+    if (i === mirrors.length - 1) {
+      const addBtn = h(doc, "button", {
+        class: "scid-btn-add",
+        type: "button",
+      }, "+");
+      addBtn.addEventListener("click", () => {
+        mirrors.push("");
+        renderMirrorList(doc, container, mirrors, onChange);
+        const inputs = container.querySelectorAll(".scid-mirror-input");
+        (inputs[inputs.length - 1] as HTMLInputElement).focus();
+      });
+      row.appendChild(addBtn);
+    }
+
+    container.appendChild(row);
+  });
+
+  // Empty state: still allow adding a mirror
+  if (mirrors.length === 0) {
+    const row = h(doc, "div", { class: "scid-mirror-row" });
+    const input = h(doc, "input", {
+      class: "scid-mirror-input",
+      type: "text",
+      value: "",
+    }) as HTMLInputElement;
+    input.addEventListener("input", onChange);
+    row.appendChild(input);
+    const statusBox = doc.createElementNS(HTML_NS, "span") as HTMLElement;
+    statusBox.className = "scid-mirror-status";
+    statusBox.textContent = "[ ]";
+    const sbStyle = statusBox.style;
+    sbStyle.width = "22px";
+    sbStyle.display = "inline-block";
+    sbStyle.textAlign = "center";
+    sbStyle.fontWeight = "bold";
+    sbStyle.fontSize = "13px";
+    sbStyle.fontFamily = "monospace";
+    sbStyle.flexShrink = "0";
+    row.appendChild(statusBox);
+    const addBtn = h(doc, "button", {
+      class: "scid-btn-add",
+      type: "button",
+    }, "+");
+    addBtn.addEventListener("click", () => {
+      mirrors.push("");
+      renderMirrorList(doc, container, mirrors, onChange);
+      const inputs = container.querySelectorAll(".scid-mirror-input");
+      (inputs[inputs.length - 1] as HTMLInputElement).focus();
+    });
+    row.appendChild(addBtn);
+    container.appendChild(row);
+  }
+}
+
 // ── Search & Download ──
+
+async function onExtract(
+  extractInput: HTMLInputElement,
+  titleInput: HTMLInputElement,
+  infoInput: HTMLInputElement,
+  doiInput: HTMLInputElement,
+  progressText: HTMLElement,
+  progressBar: HTMLElement,
+  extractBtn: HTMLButtonElement,
+) {
+  const raw = extractInput.value.trim();
+  const s = getString;
+
+  if (!raw) return setProgress(progressText, progressBar, "err", s("dialog-extract-empty"));
+
+  extractBtn.disabled = true;
+  setProgress(progressText, progressBar, "wait", s("dialog-extracting"), 10);
+  try {
+    const meta: ExtractedMeta | null = await smartExtract(raw);
+    if (!meta || !meta.title) {
+      setProgress(progressText, progressBar, "err", s("dialog-extract-fail"), 100);
+      return;
+    }
+    titleInput.value = meta.title;
+    infoInput.value = meta.info;
+    if (meta.doi) doiInput.value = meta.doi;
+    setProgress(progressText, progressBar, "ok", s("dialog-extract-ok"), 100);
+  } catch (err) {
+    ztoolkit.log("SciDownload: extract failed:", err);
+    setProgress(progressText, progressBar, "err", s("dialog-extract-fail"), 100);
+  } finally {
+    extractBtn.disabled = false;
+  }
+}
 
 async function onSearch(
   win: Window,
   doiInput: HTMLInputElement,
   collectionSelect: HTMLSelectElement,
-  mirrorTextarea: HTMLTextAreaElement,
+  mirrorContainer: HTMLElement,
   progressText: HTMLElement,
   progressBar: HTMLElement,
   searchBtn: HTMLButtonElement,
 ) {
-  const doi = doiInput.value.trim();
+  const doi = doiInput.value.trim().replace(/^https?:\/\/(?:dx\.)?doi\.org\//i, '');
   const s = getString;
 
   if (!doi) return setProgress(progressText, progressBar, "err", s("dialog-doi-missing"));
   if (!DOI_REGEX.test(doi))
     return setProgress(progressText, progressBar, "err", s("dialog-doi-invalid"));
 
-  saveMirrors(mirrorTextarea);
+  saveMirrorValues(mirrorContainer);
   const mirrors = getMirrors();
   if (mirrors.length === 0)
     return setProgress(progressText, progressBar, "err", s("dialog-mirror-empty"));
@@ -400,9 +604,33 @@ async function onSearch(
     setProgress(progressText, progressBar, "wait", "CrossRef ...", 15);
     const metadata = await lookupCrossRef(doi);
 
+    // Clear any previous status indicators before search
+    const clearStatuses = () => {
+      mirrorContainer.querySelectorAll(".scid-mirror-status").forEach((el: Element) => {
+        (el as HTMLElement).textContent = "";
+      });
+    };
+    clearStatuses();
+
     // Step 2: find PDF
     setProgress(progressText, progressBar, "wait", "Sci-Hub ...", 40);
-    const pdfUrl = await SciDownloadFetcher.findPDFUrl(doi, mirrors);
+    const findResult = await SciDownloadFetcher.findPDFUrl(doi, mirrors);
+    const pdfUrl = findResult.url;
+
+    // Update status indicators
+    const statusDivs = mirrorContainer.querySelectorAll(".scid-mirror-status");
+    findResult.statuses.forEach((status, i) => {
+      const div = statusDivs[i] as HTMLElement | undefined;
+      if (!div) return;
+      if (status === "success") {
+        div.textContent = "[✓]";
+        div.style.color = "#2e7d32";
+      } else if (status === "failed") {
+        div.textContent = "[✗]";
+        div.style.color = "#d32f2f";
+      }
+    });
+
     if (!pdfUrl) {
       setProgress(progressText, progressBar, "err", s("dialog-no-pdf"), 100);
       return;
