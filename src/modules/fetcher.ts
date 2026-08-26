@@ -16,10 +16,20 @@ export class SciDownloadFetcher {
   /**
    * Try mirrors in order. Return the first PDF URL found, or null,
    * plus per-mirror status for UI feedback.
+   * `onMirror` fires after each mirror is tried (failed or success), so the UI
+   * can render status in real time.
    */
-  static async findPDFUrl(doi: string, mirrors: string[]): Promise<FindPDFResult> {
+  static async findPDFUrl(
+    doi: string,
+    mirrors: string[],
+    onMirror?: (i: number, status: "failed" | "success") => void,
+  ): Promise<FindPDFResult> {
     const statuses: ("untested" | "failed" | "success")[] =
       new Array(mirrors.length).fill("untested");
+    const report = (i: number, s: "failed" | "success") => {
+      statuses[i] = s;
+      onMirror?.(i, s);
+    };
 
     for (let i = 0; i < mirrors.length; i++) {
       const base = mirrors[i];
@@ -36,7 +46,7 @@ export class SciDownloadFetcher {
         });
 
         if (resp.status !== 200) {
-          statuses[i] = "failed";
+          report(i, "failed");
           continue;
         }
 
@@ -49,7 +59,7 @@ export class SciDownloadFetcher {
             const pdfUrl = new URL(pdfSrc, url);
             pdfUrl.protocol = "https:";
             pdfUrl.hash = ""; // strip fragment like #view=FitH
-            statuses[i] = "success";
+            report(i, "success");
             return { url: pdfUrl.href, statuses };
           }
         }
@@ -58,16 +68,15 @@ export class SciDownloadFetcher {
         const body = resp.responseXML?.querySelector("body");
         if (body && this.pdfNotAvailable(body)) {
           ztoolkit.log(`SciDownload: PDF not available at ${url}`);
-          statuses[i] = "failed";
+          report(i, "failed");
           continue;
         }
 
         // Reached here: response OK but no PDF found → mark failed
-        statuses[i] = "failed";
+        report(i, "failed");
       } catch (err) {
         ztoolkit.log(`SciDownload: mirror ${base} failed:`, err);
-        statuses[i] = "failed";
-        continue;
+        report(i, "failed");
       }
     }
     return { url: null, statuses };

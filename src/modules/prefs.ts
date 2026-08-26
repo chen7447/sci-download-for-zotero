@@ -54,6 +54,41 @@ export function setMirrors(mirrors: string[]) {
 export function resetMirrors() {
   setPref("mirrorsVersion", DEFAULT_MIRRORS_VERSION);
   setMirrors(DEFAULT_MIRRORS);
+  clearPref("mirrorPriority");
+}
+
+// ── Mirror priorities ──
+// Keyed by trimmed mirror URL; value = access rank (0 = first).
+// Absent = no priority (default 99, access in original list order).
+
+export function getMirrorPriorities(): Record<string, number> {
+  const raw = getPref("mirrorPriority");
+  if (typeof raw !== "string") return {};
+  try {
+    const o = JSON.parse(raw);
+    return o && typeof o === "object" && !Array.isArray(o) ? o : {};
+  } catch {
+    return {};
+  }
+}
+
+export function setMirrorPriority(url: string, prio: number | null) {
+  const map = getMirrorPriorities();
+  const key = url.trim();
+  if (prio === null) {
+    // Renumber on removal: priorities above the removed one shift down by 1,
+    // keeping the set contiguous 0..k, so the next assignment is k+1.
+    const removed = map[key];
+    delete map[key];
+    if (removed !== undefined) {
+      for (const k of Object.keys(map)) {
+        if (map[k] > removed) map[k]--;
+      }
+    }
+  } else {
+    map[key] = prio;
+  }
+  setPref("mirrorPriority", JSON.stringify(map));
 }
 
 export function getDefaultMirrors(): string[] {

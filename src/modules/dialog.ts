@@ -6,9 +6,12 @@ import { smartExtract, ExtractedMeta } from "./metadata";
 import {
   getMirrors,
   setMirrors,
+  resetMirrors,
   getDefaultMirrors,
   getTargetCollectionId,
   setTargetCollectionId,
+  getMirrorPriorities,
+  setMirrorPriority,
 } from "./prefs";
 
 let _button: Element | null = null;
@@ -294,7 +297,7 @@ export function showDialog(win: Window, initialDOI?: string) {
   fillCollectionSelect(doc, collectionSelect);
   renderMirrorList(doc, mirrorContainer, getMirrors(), () => saveMirrorValues(mirrorContainer));
   restoreBtn.addEventListener("click", () => {
-    setMirrors(getDefaultMirrors());
+    resetMirrors();
     renderMirrorList(doc, mirrorContainer, getMirrors(), () => saveMirrorValues(mirrorContainer));
     setProgress(progressText, progressBar, "ok", "mirrors restored");
   });
@@ -374,6 +377,17 @@ function injectDialogStyles(doc: Document) {
 .scid-mirror-input{flex:1;border:1px solid #ccc;border-radius:3px;padding:4px 6px;font-size:13px;font-family:monospace;}
 .scid-dark .scid-mirror-input{background:#3d3d3d;color:#e0e0e0;border-color:#555;}
 .scid-mirror-status{flex-shrink:0;width:22px;text-align:center;font-size:13px;font-weight:bold;font-family:monospace;}
+.scid-mirror-prio{flex-shrink:0;width:44px;height:26px;padding:0;border:1px solid #ccc;border-radius:4px;background:transparent;color:#999;cursor:pointer;font-size:13px;font-weight:bold;font-family:monospace;line-height:1;}
+.scid-mirror-prio:hover{border-color:#1976d2;color:#1976d2;}
+.scid-mirror-prio.on{background:#e8f5e9;color:#2e7d32;border-color:#a5d6a7;}
+.scid-dark .scid-mirror-prio{background:#1c1b22;border-color:#555;color:#aaa;}
+.scid-dark .scid-mirror-prio:hover{border-color:#64b5f6;color:#64b5f6;}
+.scid-dark .scid-mirror-prio.on{background:#1b5e20;color:#a5d6a7;border-color:#2e7d32;}
+.scid-mirror-hdr{display:flex;gap:4px;align-items:center;margin-bottom:4px;font-size:12px;color:#888;white-space:nowrap;}
+.scid-dark .scid-mirror-hdr{color:#aaa;}
+.scid-mirror-hdr-prio{width:44px;text-align:center;flex-shrink:0;}
+.scid-mirror-hdr-addr{flex:1;}
+.scid-mirror-hdr-status{width:22px;text-align:center;flex-shrink:0;}
 .scid-btn-add,.scid-btn-del{width:28px;height:28px;border:1px solid #ccc;border-radius:4px;cursor:pointer;font-size:16px;line-height:1;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
 .scid-btn-add{background:#e8f5e9;color:#2e7d32;border-color:#a5d6a7;}
 .scid-btn-add:hover{background:#c8e6c9;}
@@ -436,6 +450,41 @@ function saveMirrorValues(container: HTMLElement) {
   setMirrors(urls);
 }
 
+// Priority-aware access order: prioritized mirrors (asc rank) first, then the
+// rest (default 99) in original list order. orderIndexOf[k] = original index of
+// the k-th mirror in `order`, used to map fetch statuses back to display rows.
+function orderMirrors(
+  mirrors: string[],
+  prios: Record<string, number>,
+): { order: string[]; orderIndexOf: number[] } {
+  const items = mirrors.map((url, i) => ({
+    url,
+    i,
+    p: prios[url.trim()] ?? 99,
+  }));
+  items.sort((a, b) => (a.p !== b.p ? a.p - b.p : a.i - b.i));
+  return {
+    order: items.map((x) => x.url),
+    orderIndexOf: items.map((x) => x.i),
+  };
+}
+
+function updatePriorityCell(cell: HTMLElement, prio: number | undefined) {
+  cell.textContent = prio === undefined ? "＋" : String(prio);
+  cell.classList.toggle("on", prio !== undefined);
+}
+
+// Renumbering on removal shifts other mirrors' priority down — refresh every
+// priority button so the on-screen numbers match the stored (contiguous) set.
+function refreshAllPriorityCells(container: HTMLElement) {
+  const prios = getMirrorPriorities();
+  container.querySelectorAll(".scid-mirror-prio").forEach((btn: Element) => {
+    const row = (btn as HTMLElement).closest(".scid-mirror-row");
+    const input = row?.querySelector(".scid-mirror-input") as HTMLInputElement | null;
+    if (input) updatePriorityCell(btn as HTMLElement, prios[input.value.trim()]);
+  });
+}
+
 function renderMirrorList(
   doc: Document,
   container: HTMLElement,
@@ -445,15 +494,54 @@ function renderMirrorList(
   container.innerHTML = "";
   const count = mirrors.length;
   dbg(`renderMirrorList: ${count} mirrors`);
+
+  // Column header
+  const hdr = h(doc, "div", { class: "scid-mirror-hdr" });
+  hdr.appendChild(h(doc, "span", { class: "scid-mirror-hdr-prio" }, "优先级"));
+  hdr.appendChild(h(doc, "span", { class: "scid-mirror-hdr-addr" }, "镜像地址"));
+  hdr.appendChild(h(doc, "span", { class: "scid-mirror-hdr-status" }, "状态"));
+  container.appendChild(hdr);
+
+  const prios = getMirrorPriorities();
+
   mirrors.forEach((mirror, i) => {
     const row = h(doc, "div", { class: "scid-mirror-row" });
+
+    // Priority cell (button; click to toggle)
+    const prioCell = h(doc, "button", {
+      class: "scid-mirror-prio",
+      type: "button",
+      title: "点击设置/取消优先级",
+    }) as HTMLButtonElement;
+    updatePriorityCell(prioCell, prios[mirror.trim()]);
+    prioCell.addEventListener("click", () => {
+      const url = (input.value as string).trim();
+      if (!url) return;
+      const cur = getMirrorPriorities()[url];
+      if (cur !== undefined) {
+        setMirrorPriority(url, null);
+      } else {
+        const used = new Set(Object.values(getMirrorPriorities()));
+        let p = 0;
+        while (used.has(p)) p++;
+        setMirrorPriority(url, p);
+      }
+      // Renumbering shifts other mirrors' numbers — refresh every cell.
+      refreshAllPriorityCells(container);
+    });
+    row.appendChild(prioCell);
+
     const input = h(doc, "input", {
       class: "scid-mirror-input",
       type: "text",
       value: mirror,
     }) as HTMLInputElement;
-    input.addEventListener("input", onChange);
+    input.addEventListener("input", () => {
+      updatePriorityCell(prioCell, getMirrorPriorities()[input.value.trim()]);
+      onChange();
+    });
     row.appendChild(input);
+
     const statusBox = doc.createElementNS(HTML_NS, "span") as HTMLElement;
     statusBox.className = "scid-mirror-status";
     statusBox.textContent = "[ ]";
@@ -474,6 +562,7 @@ function renderMirrorList(
         type: "button",
       }, "−");
       delBtn.addEventListener("click", () => {
+        setMirrorPriority(mirror, null);
         mirrors.splice(i, 1);
         renderMirrorList(doc, container, mirrors, onChange);
         onChange();
@@ -502,6 +591,8 @@ function renderMirrorList(
   // Empty state: still allow adding a mirror
   if (mirrors.length === 0) {
     const row = h(doc, "div", { class: "scid-mirror-row" });
+    // blank priority cell placeholder
+    row.appendChild(h(doc, "span", { class: "scid-mirror-prio" }));
     const input = h(doc, "input", {
       class: "scid-mirror-input",
       type: "text",
@@ -604,32 +695,35 @@ async function onSearch(
     setProgress(progressText, progressBar, "wait", "CrossRef ...", 15);
     const metadata = await lookupCrossRef(doi);
 
-    // Clear any previous status indicators before search
-    const clearStatuses = () => {
-      mirrorContainer.querySelectorAll(".scid-mirror-status").forEach((el: Element) => {
-        (el as HTMLElement).textContent = "";
-      });
-    };
-    clearStatuses();
-
-    // Step 2: find PDF
-    setProgress(progressText, progressBar, "wait", "Sci-Hub ...", 40);
-    const findResult = await SciDownloadFetcher.findPDFUrl(doi, mirrors);
-    const pdfUrl = findResult.url;
-
-    // Update status indicators
+    // Reset status cells to "[ ]" — untried mirrors stay visible.
     const statusDivs = mirrorContainer.querySelectorAll(".scid-mirror-status");
-    findResult.statuses.forEach((status, i) => {
-      const div = statusDivs[i] as HTMLElement | undefined;
-      if (!div) return;
-      if (status === "success") {
-        div.textContent = "[✓]";
-        div.style.color = "#2e7d32";
-      } else if (status === "failed") {
-        div.textContent = "[✗]";
-        div.style.color = "#d32f2f";
-      }
+    statusDivs.forEach((el: Element) => {
+      (el as HTMLElement).textContent = "[ ]";
+      (el as HTMLElement).style.color = "";
     });
+
+    // Step 2: find PDF — real-time per-mirror feedback, in priority order.
+    const prios = getMirrorPriorities();
+    const { order, orderIndexOf } = orderMirrors(mirrors, prios);
+    const total = order.length;
+    let tried = 0;
+    const findResult = await SciDownloadFetcher.findPDFUrl(doi, order, (k, status) => {
+      tried++;
+      const disp = orderIndexOf[k];
+      const div = statusDivs[disp] as HTMLElement | undefined;
+      if (div) {
+        if (status === "success") {
+          div.textContent = "[✓]";
+          div.style.color = "#2e7d32";
+        } else {
+          div.textContent = "[✗]";
+          div.style.color = "#d32f2f";
+        }
+      }
+      const pct = Math.min(65, 40 + (tried / total) * 25);
+      setProgress(progressText, progressBar, "wait", `Sci-Hub ... (${tried}/${total})`, pct);
+    });
+    const pdfUrl = findResult.url;
 
     if (!pdfUrl) {
       setProgress(progressText, progressBar, "err", s("dialog-no-pdf"), 100);
