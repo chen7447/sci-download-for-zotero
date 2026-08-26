@@ -36,11 +36,11 @@
 
 ### 入口 1：文库工具栏按钮
 
-安装后，在 Zotero 文库工具栏（搜索框左侧）会出现一个下载按钮。点击即可打开下载面板。
+安装后，在 Zotero 文库工具栏（搜索框左侧）会出现一个[下载按钮](https://github.com/chen7447/sci-download-for-zotero/blob/master/addon/content/icons/download.svg)。点击即可打开下载面板。
 
 ### 入口 2：PDF 阅读器按钮
 
-在任意 PDF 阅读器界面，工具栏会显示一个下载按钮。点击后自动带出当前条目已有的 DOI，直接开始搜索下载，方便边读边补。
+在任意 PDF 阅读器界面，工具栏会显示一个[下载按钮](https://github.com/chen7447/sci-download-for-zotero/blob/master/addon/content/icons/download.svg)。点击后自动带出当前条目已有的 DOI，直接开始搜索下载，方便边读边补。
 
 ### 智能提取文献信息
 
@@ -71,9 +71,9 @@
 - **状态列**：下载时实时显示该站点的成败状态
 - **还原默认**：一键恢复内置镜像站列表
 
-### 科研狗
+### 科研通
 
-面板底部 **科研狗 →** 链接可打开 [tool.yovisun.com/scihub](https://tool.yovisun.com/scihub/) 查询当前可用的 Sci-Hub 镜像站。
+面板底部 **科研通 →** 链接可打开 [tool.yovisun.com/scihub](https://tool.yovisun.com/scihub/) 查询当前可用的 Sci-Hub 镜像站。
 
 ### 如何查找 DOI
 
