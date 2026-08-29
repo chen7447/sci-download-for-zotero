@@ -3,6 +3,9 @@
 /* eslint-disable */
 // @ts-nocheck
 export type FluentMessageId =
+  | 'batch-downloading'
+  | 'batch-no-items'
+  | 'batch-summary'
   | 'dialog-collection-default'
   | 'dialog-collection-label'
   | 'dialog-crossref-fail'
@@ -40,4 +43,5 @@ export type FluentMessageId =
   | 'dialog-search'
   | 'dialog-title'
   | 'dialog-title-label'
+  | 'menu-download-pdfs'
   | 'prefs-title';

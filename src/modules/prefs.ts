@@ -70,6 +70,28 @@ export function setLastGoodMirror(url: string) {
   setPref("lastGoodMirror", url);
 }
 
+/**
+ * Full mirror access order used by every download flow: priority order with
+ * the sticky mirror moved to the front. orderIndexOf maps positions in
+ * `order` back to rows in the mirrors pref list (for per-mirror UI status).
+ */
+export function getOrderedMirrors(): {
+  order: string[];
+  orderIndexOf: number[];
+} {
+  const { order, orderIndexOf } = orderMirrors(
+    getMirrors(),
+    getMirrorPriorities(),
+  );
+  const sticky = getLastGoodMirror();
+  const stickyIdx = sticky ? order.indexOf(sticky) : -1;
+  if (stickyIdx > 0) {
+    order.unshift(order.splice(stickyIdx, 1)[0]);
+    orderIndexOf.unshift(orderIndexOf.splice(stickyIdx, 1)[0]);
+  }
+  return { order, orderIndexOf };
+}
+
 // ── Mirror priorities ──
 // Keyed by trimmed mirror URL; value = access rank (0 = first).
 // Absent = no priority (default 99, access in original list order).

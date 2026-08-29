@@ -92,3 +92,18 @@ async function fetchJSON(url: string): Promise<any> {
   });
   return JSON.parse(resp.responseText ?? "null");
 }
+
+/**
+ * Best-effort DOI lookup from a title (CrossRef bibliographic query, top hit).
+ * Used by the batch flow and the reader button when an item has no DOI field.
+ */
+export async function lookupDOIByTitle(title: string): Promise<string> {
+  try {
+    const data = await fetchJSON(
+      `https://api.crossref.org/works?query.bibliographic=${encodeURIComponent(title)}&rows=1`,
+    );
+    return String(data?.message?.items?.[0]?.DOI || "");
+  } catch {
+    return "";
+  }
+}

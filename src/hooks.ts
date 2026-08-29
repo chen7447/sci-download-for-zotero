@@ -6,6 +6,10 @@ import {
   unregisterReaderToolbar,
 } from "./modules/reader-toolbar";
 import { getMirrors } from "./modules/prefs";
+import {
+  registerItemContextMenu,
+  unregisterItemContextMenu,
+} from "./modules/batch";
 
 async function onStartup() {
   await Promise.all([
@@ -33,15 +37,18 @@ async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
   addon.data.ztoolkit = createZToolkit();
   Zotero.debug("[Sci-Download] onMainWindowLoad");
   installToolbarButton(win);
+  registerItemContextMenu(win);
 }
 
 async function onMainWindowUnload(_win: Window): Promise<void> {
   uninstallToolbarButton(_win);
+  unregisterItemContextMenu(_win);
   ztoolkit.unregisterAll();
 }
 
 function onShutdown(): void {
   uninstallToolbarButton();
+  unregisterItemContextMenu();
   unregisterReaderToolbar();
   ztoolkit.unregisterAll();
   addon.data.alive = false;

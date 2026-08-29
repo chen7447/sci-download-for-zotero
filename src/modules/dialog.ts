@@ -13,9 +13,8 @@ import {
   setTargetCollectionId,
   getMirrorPriorities,
   setMirrorPriority,
-  orderMirrors,
-  getLastGoodMirror,
   setLastGoodMirror,
+  getOrderedMirrors,
 } from "./prefs";
 
 // Toolbar buttons are per-window; Zotero normally has one main window but the
@@ -874,16 +873,9 @@ async function onSearch(
     });
 
     // Step 2: find PDF — windows of mirrors race in parallel; the first
-    // verified PDF wins. Real-time per-mirror status in priority order.
-    const prios = getMirrorPriorities();
-    const { order, orderIndexOf } = orderMirrors(mirrors, prios);
-    // Sticky mirror: the last mirror that served a PDF leads the race
-    const sticky = getLastGoodMirror();
-    const stickyIdx = sticky ? order.indexOf(sticky) : -1;
-    if (stickyIdx > 0) {
-      order.unshift(order.splice(stickyIdx, 1)[0]);
-      orderIndexOf.unshift(orderIndexOf.splice(stickyIdx, 1)[0]);
-    }
+    // verified PDF wins. Real-time per-mirror status in access order
+    // (sticky mirror first, then priority order).
+    const { order, orderIndexOf } = getOrderedMirrors();
     const total = order.length;
     let tried = 0;
     const pdfUrl = await SciDownloadFetcher.findPDFUrl(
