@@ -1,6 +1,6 @@
 {
   "name": "zotero-scidownload",
-  "version": "1.3.1",
+  "version": "1.4.0",
   "description": "Download PDF from Sci-Hub - Zotero Plugin",
   "config": {
     "addonName": "Sci-Download",
