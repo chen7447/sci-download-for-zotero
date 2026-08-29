@@ -13,16 +13,9 @@ const MIRROR_UA =
   "Mozilla/5.0 (iPhone; CPU iPhone OS 11_3_1 like Mac OS X) AppleWebKit/603.1.30 " +
   "(KHTML, like Gecko) Version/10.0 Mobile/14E304 Safari/602.1";
 
-export interface FindPDFResult {
-  url: string | null;
-  /** per-mirror status, aligned with the input mirrors array */
-  statuses: ("untested" | "failed" | "success")[];
-}
-
 export class SciDownloadFetcher {
   /**
-   * Try mirrors in order. Return the first PDF URL found, or null,
-   * plus per-mirror status for UI feedback.
+   * Try mirrors in order. Return the first PDF URL found, or null.
    * `onMirror` fires after each mirror is tried (failed or success), so the UI
    * can render status in real time. `isCancelled` is polled between mirrors;
    * when it returns true the loop stops without further requests.
@@ -32,12 +25,8 @@ export class SciDownloadFetcher {
     mirrors: string[],
     onMirror?: (i: number, status: "failed" | "success") => void,
     isCancelled?: () => boolean,
-  ): Promise<FindPDFResult> {
-    const statuses: ("untested" | "failed" | "success")[] = new Array(
-      mirrors.length,
-    ).fill("untested");
+  ): Promise<string | null> {
     const report = (i: number, s: "failed" | "success") => {
-      statuses[i] = s;
       onMirror?.(i, s);
     };
 
@@ -70,7 +59,7 @@ export class SciDownloadFetcher {
               continue;
             }
             report(i, "success");
-            return { url: pdfUrl.href, statuses };
+            return pdfUrl.href;
           }
         }
 
@@ -85,7 +74,7 @@ export class SciDownloadFetcher {
         report(i, "failed");
       }
     }
-    return { url: null, statuses };
+    return null;
   }
 
   /**
@@ -159,7 +148,7 @@ export class SciDownloadFetcher {
         item.setField("DOI", doi);
         if (metadata) {
           item.setField("title", metadata.title);
-          item.setField("date", String(metadata.year));
+          if (metadata.year) item.setField("date", String(metadata.year));
           item.setField("publicationTitle", metadata.journal);
           item.setField("publisher", metadata.publisher);
           if (metadata.volume) item.setField("volume", metadata.volume);
@@ -176,7 +165,6 @@ export class SciDownloadFetcher {
         } else {
           item.setField("title", `DOI: ${doi}`);
         }
-        item.setField("extra", `DOI: ${doi}`);
 
         // Save and add to selected collection
         if (collectionId !== null) {

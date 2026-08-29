@@ -1,5 +1,6 @@
 import { lookupCrossRef, CrossrefAuthor } from "./crossref";
 import { httpGet } from "../utils/http";
+import { classifyInput, normalizeDOI } from "../utils/doi";
 
 // ponytail: three regexes, three public GETs, no framework
 export interface ExtractedMeta {
@@ -11,11 +12,12 @@ export interface ExtractedMeta {
 export async function smartExtract(
   input: string,
 ): Promise<ExtractedMeta | null> {
-  const v = input.trim().replace(/^https?:\/\/(?:dx\.)?doi\.org\//i, "");
+  const v = normalizeDOI(input);
   if (!v) return null;
 
-  if (/^10\.\d{4,9}\//.test(v)) return extractByDOI(v);
-  if (/^\d{6,9}$/.test(v)) return extractByPMID(v);
+  const kind = classifyInput(input);
+  if (kind === "doi") return extractByDOI(v);
+  if (kind === "pmid") return extractByPMID(v);
   return extractByTitle(v);
 }
 
@@ -84,9 +86,9 @@ function formatAuthors(list: CrossrefAuthor[]): string {
 }
 
 async function fetchJSON(url: string): Promise<any> {
+  // Zotero.HTTP.request rejects on non-2xx; callers treat any throw as null.
   const resp = await httpGet(url, {
     headers: { "User-Agent": "Zotero-SciDownload/0.1" },
   });
-  if (resp.status !== 200) return null;
   return JSON.parse(resp.responseText ?? "null");
 }

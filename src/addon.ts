@@ -1,5 +1,4 @@
 import { config } from "../package.json";
-import { DialogHelper } from "zotero-plugin-toolkit";
 import hooks from "./hooks";
 import { createZToolkit } from "./utils/ztoolkit";
 
@@ -16,11 +15,9 @@ class Addon {
     prefs?: {
       window: Window;
     };
-    dialog?: DialogHelper;
     registeredMenuIDs: string[];
   };
   public hooks: typeof hooks;
-  public api: object;
 
   constructor() {
     this.data = {
@@ -32,7 +29,6 @@ class Addon {
       registeredMenuIDs: [],
     };
     this.hooks = hooks;
-    this.api = {};
   }
 }
 

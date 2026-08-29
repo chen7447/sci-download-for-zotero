@@ -25,8 +25,7 @@ export async function lookupCrossRef(
     const resp = await httpGet(url, {
       headers: { "User-Agent": "Zotero-SciDownload/0.1" },
     });
-    if (resp.status !== 200) return null;
-
+    // Zotero.HTTP.request rejects on non-2xx; the catch below reports null.
     const data = JSON.parse(resp.responseText ?? "");
     const msg = data?.message;
     if (!msg) return null;

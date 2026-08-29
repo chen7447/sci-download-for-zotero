@@ -5,7 +5,7 @@ import {
   registerReaderToolbar,
   unregisterReaderToolbar,
 } from "./modules/reader-toolbar";
-import { setMirrors, getDefaultMirrors } from "./modules/prefs";
+import { getMirrors } from "./modules/prefs";
 
 async function onStartup() {
   await Promise.all([
@@ -16,14 +16,9 @@ async function onStartup() {
 
   initLocale();
 
-  // Initialize defaults if not set
-  const mirrorsPref = Zotero.Prefs.get(
-    "extensions.zotero.scidownload.mirrors",
-    true,
-  );
-  if (!mirrorsPref) {
-    setMirrors(getDefaultMirrors());
-  }
+  // First call merges new default mirrors into the saved list (version bump)
+  // and writes prefs, so no separate first-run init is needed.
+  getMirrors();
 
   await Promise.all(
     Zotero.getMainWindows().map((win) => onMainWindowLoad(win)),
@@ -41,16 +36,14 @@ async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
 }
 
 async function onMainWindowUnload(_win: Window): Promise<void> {
-  uninstallToolbarButton();
+  uninstallToolbarButton(_win);
   ztoolkit.unregisterAll();
-  addon.data.dialog?.window?.close();
 }
 
 function onShutdown(): void {
   uninstallToolbarButton();
   unregisterReaderToolbar();
   ztoolkit.unregisterAll();
-  addon.data.dialog?.window?.close();
   addon.data.alive = false;
   // @ts-expect-error - Plugin instance is not typed
   delete Zotero[addon.data.config.addonInstance];

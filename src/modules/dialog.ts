@@ -1,5 +1,6 @@
 import { config } from "../../package.json";
 import { getString } from "../utils/locale";
+import { DOI_REGEX, normalizeDOI } from "../utils/doi";
 import { SciDownloadFetcher } from "./fetcher";
 import { lookupCrossRef } from "./crossref";
 import { smartExtract, ExtractedMeta } from "./metadata";
@@ -14,12 +15,12 @@ import {
   setMirrorPriority,
 } from "./prefs";
 
-let _button: Element | null = null;
-let _dialogOpen = false;
-// ponytail: styles are per-document; track injected documents, not a single flag
+// Toolbar buttons are per-window; Zotero normally has one main window but the
+// hook plumbing is multi-window, so track each installed button by its window.
+const _buttons = new Map<Window, Element>();
+// styles are per-document; track injected documents, not a single flag
 const _styledDocs = new WeakSet<Document>();
 
-const DOI_REGEX = /^10\.\d{4,9}\/[-._;()/:a-zA-Z0-9]+$/;
 export const ICON_URI = `chrome://${config.addonRef}/content/icons/download.svg`;
 
 const HTML_NS = "http://www.w3.org/1999/xhtml";
@@ -95,8 +96,8 @@ function createToolbarButton(doc: Document): Element {
 // ── Toolbar button ──
 
 export function installToolbarButton(win: Window) {
-  if (_button) {
-    dbg("toolbar button already installed, skip");
+  if (_buttons.has(win)) {
+    dbg("toolbar button already installed for this window, skip");
     return;
   }
   try {
@@ -125,7 +126,6 @@ export function installToolbarButton(win: Window) {
         showDialog(win);
       } catch (err) {
         dumpErr("showDialog", err);
-        _dialogOpen = false;
       }
     };
     // XUL toolbarbuttons fire both click and command on mouse press; listening
@@ -143,26 +143,29 @@ export function installToolbarButton(win: Window) {
         `toolbar button appended to #${point.parent.id || point.parent.tagName}`,
       );
     }
-    _button = btn;
+    _buttons.set(win, btn);
   } catch (err) {
     dbg(`installToolbarButton failed: ${err}`);
   }
 }
 
-export function uninstallToolbarButton() {
-  _button?.remove();
-  _button = null;
+export function uninstallToolbarButton(win?: Window) {
+  if (win) {
+    _buttons.get(win)?.remove();
+    _buttons.delete(win);
+    return;
+  }
+  for (const btn of _buttons.values()) btn.remove();
+  _buttons.clear();
 }
 
 // ── Dialog ──
 
 export function showDialog(win: Window, initialDOI?: string) {
-  dbg(`showDialog start, open=${_dialogOpen}`);
-  // Single-instance guard is per-window: remove any leftover overlay in THIS
-  // window, so stale cross-window state never blocks a fresh open.
-  _dialogOpen = false;
+  // Single instance: remove any leftover overlay in THIS window first, so
+  // stale state never blocks a fresh open. No flag is tracked — the removal
+  // plus the append below always leave exactly one dialog.
   win.document.getElementById("scidownload-overlay")?.remove();
-  _dialogOpen = true;
   const doc = win.document;
   const isDark =
     doc.documentElement?.classList.contains("theme-dark") ||
@@ -427,7 +430,6 @@ export function showDialog(win: Window, initialDOI?: string) {
   doiInput.focus();
 
   function closeDialog() {
-    _dialogOpen = false;
     overlay.remove();
     dbg("dialog closed");
   }
@@ -554,6 +556,7 @@ function fillCollectionSelect(doc: Document, select: HTMLSelectElement) {
 // ponytail: builtin mirrors (by URL content) are not deletable; user-added ones are
 function isDefaultMirror(url: string): boolean {
   const v = url.trim();
+  if (!v) return false;
   return getDefaultMirrors().some((d) => d.trim() === v);
 }
 
@@ -563,6 +566,15 @@ function saveMirrorValues(container: HTMLElement) {
     .map((inp) => (inp as HTMLInputElement).value.trim())
     .filter((s) => s.length > 0);
   setMirrors(urls);
+}
+
+// Status cell for one mirror row ("[ ]" until a download marks it). All styling
+// comes from the .scid-mirror-status CSS class.
+function makeStatusBox(doc: Document): HTMLElement {
+  const box = doc.createElementNS(HTML_NS, "span") as HTMLElement;
+  box.className = "scid-mirror-status";
+  box.textContent = "[ ]";
+  return box;
 }
 
 // Priority-aware access order: prioritized mirrors (asc rank) first, then the
@@ -610,8 +622,9 @@ function renderMirrorList(
   onChange: () => void,
 ) {
   container.innerHTML = "";
-  const count = mirrors.length;
-  dbg(`renderMirrorList: ${count} mirrors`);
+  // Empty list: render one blank row so adding a first mirror still works
+  if (mirrors.length === 0) mirrors.push("");
+  dbg(`renderMirrorList: ${mirrors.length} mirrors`);
 
   // Column header
   const hdr = h(doc, "div", { class: "scid-mirror-hdr" });
@@ -681,21 +694,11 @@ function renderMirrorList(
     });
     row.appendChild(input);
 
-    const statusBox = doc.createElementNS(HTML_NS, "span") as HTMLElement;
-    statusBox.className = "scid-mirror-status";
-    statusBox.textContent = "[ ]";
-    const sbStyle = statusBox.style;
-    sbStyle.width = "22px";
-    sbStyle.display = "inline-block";
-    sbStyle.textAlign = "center";
-    sbStyle.fontWeight = "bold";
-    sbStyle.fontSize = "13px";
-    sbStyle.fontFamily = "monospace";
-    sbStyle.flexShrink = "0";
-    row.appendChild(statusBox);
+    row.appendChild(makeStatusBox(doc));
 
-    // User-added mirrors (not matching any builtin default) are deletable
-    if (!isDefaultMirror(mirror)) {
+    // User-added mirrors (not matching any builtin default) are deletable;
+    // the blank row of an empty list is not
+    if (mirror.trim() !== "" && !isDefaultMirror(mirror)) {
       const delBtn = h(
         doc,
         "button",
@@ -736,49 +739,6 @@ function renderMirrorList(
 
     container.appendChild(row);
   });
-
-  // Empty state: still allow adding a mirror
-  if (mirrors.length === 0) {
-    const row = h(doc, "div", { class: "scid-mirror-row" });
-    // blank priority cell placeholder
-    row.appendChild(h(doc, "span", { class: "scid-mirror-prio" }));
-    const input = h(doc, "input", {
-      class: "scid-mirror-input",
-      type: "text",
-      value: "",
-    }) as HTMLInputElement;
-    input.addEventListener("input", onChange);
-    row.appendChild(input);
-    const statusBox = doc.createElementNS(HTML_NS, "span") as HTMLElement;
-    statusBox.className = "scid-mirror-status";
-    statusBox.textContent = "[ ]";
-    const sbStyle = statusBox.style;
-    sbStyle.width = "22px";
-    sbStyle.display = "inline-block";
-    sbStyle.textAlign = "center";
-    sbStyle.fontWeight = "bold";
-    sbStyle.fontSize = "13px";
-    sbStyle.fontFamily = "monospace";
-    sbStyle.flexShrink = "0";
-    row.appendChild(statusBox);
-    const addBtn = h(
-      doc,
-      "button",
-      {
-        class: "scid-btn-add",
-        type: "button",
-      },
-      "+",
-    );
-    addBtn.addEventListener("click", () => {
-      mirrors.push("");
-      renderMirrorList(doc, container, mirrors, onChange);
-      const inputs = container.querySelectorAll(".scid-mirror-input");
-      (inputs[inputs.length - 1] as HTMLInputElement).focus();
-    });
-    row.appendChild(addBtn);
-    container.appendChild(row);
-  }
 }
 
 // ── Search & Download ──
@@ -845,9 +805,7 @@ async function onSearch(
   searchBtn: HTMLButtonElement,
   isCancelled: () => boolean,
 ) {
-  const doi = doiInput.value
-    .trim()
-    .replace(/^https?:\/\/(?:dx\.)?doi\.org\//i, "");
+  const doi = normalizeDOI(doiInput.value);
   const s = getString;
 
   if (!doi)
@@ -914,7 +872,7 @@ async function onSearch(
     const { order, orderIndexOf } = orderMirrors(mirrors, prios);
     const total = order.length;
     let tried = 0;
-    const findResult = await SciDownloadFetcher.findPDFUrl(
+    const pdfUrl = await SciDownloadFetcher.findPDFUrl(
       doi,
       order,
       (k, status) => {
@@ -941,7 +899,6 @@ async function onSearch(
       },
       isCancelled,
     );
-    const pdfUrl = findResult.url;
 
     if (!pdfUrl) {
       setProgress(progressText, progressBar, "err", s("dialog-no-pdf"), 100);
