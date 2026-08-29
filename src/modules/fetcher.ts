@@ -183,10 +183,11 @@ export class SciDownloadFetcher {
     doi: string,
     metadata: CrossRefMetadata | null,
     collectionId: number | null,
+    preferredItemId?: number,
   ): Promise<{ success: boolean; message: string }> {
     try {
       // The target library follows the selected collection (group libraries
-      // supported); no collection → My Library (库级幂等语义).
+      // supported); no collection → My Library.
       const libraryID =
         collectionId !== null
           ? ((Zotero.Collections.get(collectionId) as any)?.libraryID ?? 1)
@@ -195,24 +196,29 @@ export class SciDownloadFetcher {
         return { success: false, message: "dialog-library-readonly" };
       }
 
-      // C1: Search the target library for DOI, then check collection
+      // Unified management: one parent item per DOI per library. Reuse the
+      // existing item and add it to the selected collection when needed —
+      // never create a second item for a DOI the library already has.
       let targetItem: Zotero.Item | null = null;
-      const existingItem = await this.findItemByDOI(doi, libraryID);
+      const existingItem = await this.findItemByDOI(
+        doi,
+        libraryID,
+        preferredItemId,
+      );
 
       if (existingItem) {
-        // Check if item is already in the selected collection
-        const collections = existingItem.getCollections() as number[];
-        if (collectionId !== null && collections.includes(collectionId)) {
-          targetItem = existingItem;
-        } else if (collectionId === null) {
-          // No collection selected → use the found item
-          targetItem = existingItem;
+        targetItem = existingItem;
+        if (collectionId !== null) {
+          const collections = existingItem.getCollections() as number[];
+          if (!collections.includes(collectionId)) {
+            existingItem.addToCollection(collectionId);
+            await existingItem.saveTx();
+          }
         }
-        // If collectionId is set but item is NOT in that collection → fall through to create new
       }
 
       if (!targetItem) {
-        // C2: Create new item (no match in selected collection, or no match at all)
+        // No match in the target library → create a new item
         const item = new Zotero.Item("journalArticle");
         item.libraryID = libraryID;
         item.setField("DOI", doi);
@@ -273,19 +279,27 @@ export class SciDownloadFetcher {
   }
 
   /**
-   * Find an existing Zotero item by DOI field within one library.
+   * Find an existing Zotero item by DOI field within one library. With
+   * multiple DOI matches (e.g. duplicates left by older versions), prefer
+   * `preferredItemId` so a batch download attaches to the item the user
+   * actually selected.
    */
   private static async findItemByDOI(
     doi: string,
     libraryID: number,
+    preferredItemId?: number,
   ): Promise<Zotero.Item | null> {
     try {
       const s = new Zotero.Search();
       s.addCondition("DOI", "is", doi);
       s.addCondition("libraryID", "is", String(libraryID));
-      const ids = await s.search();
+      const ids = (await s.search()) as number[];
       if (ids && ids.length > 0) {
-        const it = Zotero.Items.get(ids[0]);
+        const pick =
+          preferredItemId !== undefined && ids.includes(preferredItemId)
+            ? preferredItemId
+            : ids[0];
+        const it = Zotero.Items.get(pick);
         return it || null;
       }
       return null;

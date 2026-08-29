@@ -139,6 +139,9 @@ async function downloadForItem(
     doi,
     metadata,
     collectionId,
+    // Prefer the selected item among same-DOI duplicates so the PDF lands
+    // where the user is looking
+    item.id as number,
   );
   if (!result.success) return "failed";
   return result.message === "dialog-pdf-exists" ? "skippedPdf" : "ok";
