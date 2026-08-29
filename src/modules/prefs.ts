@@ -95,8 +95,8 @@ export function getDefaultMirrors(): string[] {
   return [...DEFAULT_MIRRORS];
 }
 
-// ponytail: Set dedupe by trimmed URL, defaults first, user entries kept
-function mergeMirrors(defaults: string[], existing: string[]): string[] {
+// Set dedupe by trimmed URL, defaults first, user entries kept
+export function mergeMirrors(defaults: string[], existing: string[]): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const url of [...defaults, ...existing]) {
@@ -109,7 +109,9 @@ function mergeMirrors(defaults: string[], existing: string[]): string[] {
   return out;
 }
 
-function safeParseMirrors(raw: string | undefined): string[] | null {
+export function safeParseMirrors(
+  raw: string | undefined | null,
+): string[] | null {
   if (raw === undefined || raw === null) return null;
   try {
     const arr = JSON.parse(raw);
@@ -117,6 +119,25 @@ function safeParseMirrors(raw: string | undefined): string[] | null {
   } catch {
     return null;
   }
+}
+
+// Priority-aware access order: prioritized mirrors (asc rank) first, then the
+// rest (default 99) in original list order. orderIndexOf[k] = original index of
+// the k-th mirror in `order`, used to map fetch statuses back to display rows.
+export function orderMirrors(
+  mirrors: string[],
+  prios: Record<string, number>,
+): { order: string[]; orderIndexOf: number[] } {
+  const items = mirrors.map((url, i) => ({
+    url,
+    i,
+    p: prios[url.trim()] ?? 99,
+  }));
+  items.sort((a, b) => (a.p !== b.p ? a.p - b.p : a.i - b.i));
+  return {
+    order: items.map((x) => x.url),
+    orderIndexOf: items.map((x) => x.i),
+  };
 }
 
 // ── Target collection ──

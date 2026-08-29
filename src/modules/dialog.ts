@@ -13,6 +13,7 @@ import {
   setTargetCollectionId,
   getMirrorPriorities,
   setMirrorPriority,
+  orderMirrors,
 } from "./prefs";
 
 // Toolbar buttons are per-window; Zotero normally has one main window but the
@@ -575,25 +576,6 @@ function makeStatusBox(doc: Document): HTMLElement {
   box.className = "scid-mirror-status";
   box.textContent = "[ ]";
   return box;
-}
-
-// Priority-aware access order: prioritized mirrors (asc rank) first, then the
-// rest (default 99) in original list order. orderIndexOf[k] = original index of
-// the k-th mirror in `order`, used to map fetch statuses back to display rows.
-function orderMirrors(
-  mirrors: string[],
-  prios: Record<string, number>,
-): { order: string[]; orderIndexOf: number[] } {
-  const items = mirrors.map((url, i) => ({
-    url,
-    i,
-    p: prios[url.trim()] ?? 99,
-  }));
-  items.sort((a, b) => (a.p !== b.p ? a.p - b.p : a.i - b.i));
-  return {
-    order: items.map((x) => x.url),
-    orderIndexOf: items.map((x) => x.i),
-  };
 }
 
 function updatePriorityCell(cell: HTMLElement, prio: number | undefined) {
