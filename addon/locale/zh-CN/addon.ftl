@@ -7,6 +7,7 @@ dialog-extract-empty = 请输入 DOI、PMID 或文献标题
 dialog-extracting = 正在识别并提取文献信息...
 dialog-extract-ok = 已提取文献信息，请核对后点击「搜索并下载」
 dialog-extract-fail = 未能识别该输入对应的文献信息，请检查后重试
+dialog-title-low-confidence = 结果与输入标题匹配度较低，请核对后再下载
 dialog-title-label = 标题:
 dialog-info-label = 信息:
 dialog-doi-label = DOI

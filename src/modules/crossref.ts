@@ -1,5 +1,5 @@
 // ponytail: one fetch call, no error handling abstraction
-import { httpGet } from "../utils/http";
+import { httpGet, METADATA_UA } from "../utils/http";
 
 export interface CrossrefAuthor {
   given: string;
@@ -23,7 +23,7 @@ export async function lookupCrossRef(
   try {
     const url = `https://api.crossref.org/works/${encodeURIComponent(doi)}`;
     const resp = await httpGet(url, {
-      headers: { "User-Agent": "Zotero-SciDownload/0.1" },
+      headers: { "User-Agent": METADATA_UA },
     });
     // Zotero.HTTP.request rejects on non-2xx; the catch below reports null.
     const data = JSON.parse(resp.responseText ?? "");

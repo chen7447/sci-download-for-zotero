@@ -1,6 +1,7 @@
 import { config } from "../../package.json";
 import { getString } from "../utils/locale";
 import { showDialog } from "./dialog";
+import { lookupDOIByTitle } from "./metadata";
 
 const BTN_ID = "scidownload-reader-btn";
 const PLACEHOLDER = 32;
@@ -63,7 +64,20 @@ function renderToolbar(event: RenderToolbarEvent): void {
     ev.stopPropagation();
     const item = reader.itemID ? Zotero.Items.get(reader.itemID) || null : null;
     const doi = item?.getField("DOI") ?? "";
-    showDialog(doc.defaultView as Window, doi || undefined);
+    if (doi) {
+      showDialog(doc.defaultView as Window, doi);
+      return;
+    }
+    // No DOI on the item: fall back to a CrossRef title lookup and prefill
+    const title = String(item?.getField("title") || "");
+    const win = doc.defaultView as Window;
+    if (title) {
+      void lookupDOIByTitle(title).then((found) =>
+        showDialog(win, found || undefined),
+      );
+    } else {
+      showDialog(win);
+    }
   });
   wrap.append(btn);
   append(wrap);

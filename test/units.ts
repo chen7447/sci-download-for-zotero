@@ -9,6 +9,7 @@ import {
   safeParseMirrors,
   setMirrorPriority,
 } from "../src/modules/prefs";
+import { titleSimilarity } from "../src/modules/metadata";
 
 describe("utils/doi", () => {
   describe("normalizeDOI", () => {
@@ -140,6 +141,35 @@ describe("modules/prefs", () => {
       expect(prios[urls[1]]).to.equal(0);
       expect(prios[urls[2]]).to.equal(1);
       expect(prios[urls[0]]).to.equal(undefined);
+    });
+  });
+});
+
+describe("modules/metadata", () => {
+  describe("titleSimilarity", () => {
+    it("gives 1 for identical titles", () => {
+      expect(
+        titleSimilarity(
+          "A New Fossil from the Jurassic",
+          "A New Fossil from the Jurassic",
+        ),
+      ).to.equal(1);
+    });
+
+    it("is case- and punctuation-insensitive", () => {
+      expect(titleSimilarity("A NEW Fossil!", "a new fossil")).to.equal(1);
+    });
+
+    it("gives 0 for disjoint titles", () => {
+      expect(
+        titleSimilarity("Alpha Beta Gamma", "Delta Epsilon Zeta"),
+      ).to.equal(0);
+    });
+
+    it("returns partial overlap as a fraction", () => {
+      const sim = titleSimilarity("Alpha Beta Gamma", "Alpha Beta Zeta");
+      expect(sim).to.be.greaterThan(0);
+      expect(sim).to.be.lessThan(1);
     });
   });
 });

@@ -43,5 +43,6 @@ export type FluentMessageId =
   | 'dialog-search'
   | 'dialog-title'
   | 'dialog-title-label'
+  | 'dialog-title-low-confidence'
   | 'menu-download-pdfs'
   | 'prefs-title';

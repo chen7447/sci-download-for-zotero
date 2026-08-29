@@ -785,7 +785,17 @@ async function onExtract(
     titleInput.value = meta.title;
     infoInput.value = meta.info;
     if (meta.doi) doiInput.value = meta.doi;
-    setProgress(progressText, progressBar, "ok", s("dialog-extract-ok"), 100);
+    if (meta.lowConfidence) {
+      setProgress(
+        progressText,
+        progressBar,
+        "warn",
+        s("dialog-title-low-confidence"),
+        100,
+      );
+    } else {
+      setProgress(progressText, progressBar, "ok", s("dialog-extract-ok"), 100);
+    }
   } catch (err) {
     ztoolkit.log("SciDownload: extract failed:", err);
     setProgress(
@@ -944,13 +954,19 @@ async function onSearch(
 function setProgress(
   textEl: HTMLElement,
   barEl: HTMLElement,
-  type: "wait" | "ok" | "err",
+  type: "wait" | "ok" | "err" | "warn",
   msg: string,
   pct?: number,
 ) {
   textEl.textContent = msg;
   textEl.style.color =
-    type === "err" ? "#d32f2f" : type === "ok" ? "#2e7d32" : "#1976d2";
+    type === "err"
+      ? "#d32f2f"
+      : type === "ok"
+        ? "#2e7d32"
+        : type === "warn"
+          ? "#b26a00"
+          : "#1976d2";
 
   // Build or reuse the fill bar
   let fill = barEl.firstChild as HTMLElement | null;
@@ -959,8 +975,13 @@ function setProgress(
     fill.className = "scid-progress-bar-fill";
     barEl.appendChild(fill);
   }
-  fill.style.width =
-    (pct ?? (type === "err" ? 100 : type === "ok" ? 100 : 30)) + "%";
+  fill.style.width = (pct ?? (type === "wait" ? 30 : 100)) + "%";
   fill.style.background =
-    type === "err" ? "#d32f2f" : type === "ok" ? "#2e7d32" : "#1976d2";
+    type === "err"
+      ? "#d32f2f"
+      : type === "ok"
+        ? "#2e7d32"
+        : type === "warn"
+          ? "#e6a23c"
+          : "#1976d2";
 }

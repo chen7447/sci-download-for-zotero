@@ -7,6 +7,7 @@ dialog-extract-empty = Enter a DOI, PMID, or paper title
 dialog-extracting = Identifying and extracting literature info...
 dialog-extract-ok = Literature info extracted. Verify, then click "Search & Download".
 dialog-extract-fail = Could not identify the literature from this input. Check and retry.
+dialog-title-low-confidence = Title match looks uncertain — please verify before downloading.
 dialog-title-label = Title:
 dialog-info-label = Info:
 dialog-doi-label = DOI
