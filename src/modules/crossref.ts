@@ -17,7 +17,9 @@ export interface CrossRefMetadata {
   publisher: string;
 }
 
-export async function lookupCrossRef(doi: string): Promise<CrossRefMetadata | null> {
+export async function lookupCrossRef(
+  doi: string,
+): Promise<CrossRefMetadata | null> {
   try {
     const url = `https://api.crossref.org/works/${encodeURIComponent(doi)}`;
     const resp = await httpGet(url, {
@@ -35,10 +37,11 @@ export async function lookupCrossRef(doi: string): Promise<CrossRefMetadata | nu
       family: a.family || "",
     }));
     const journal = msg["container-title"]?.[0] || "";
-    const year = msg["published-print"]?.["date-parts"]?.[0]?.[0]
-      || msg["published-online"]?.["date-parts"]?.[0]?.[0]
-      || msg["issued"]?.["date-parts"]?.[0]?.[0]
-      || 0;
+    const year =
+      msg["published-print"]?.["date-parts"]?.[0]?.[0] ||
+      msg["published-online"]?.["date-parts"]?.[0]?.[0] ||
+      msg["issued"]?.["date-parts"]?.[0]?.[0] ||
+      0;
     const volume = msg.volume || "";
     const issue = msg.issue || "";
     const pages = msg.page || "";

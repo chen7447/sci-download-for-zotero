@@ -8,7 +8,9 @@ export interface ExtractedMeta {
   doi: string;
 }
 
-export async function smartExtract(input: string): Promise<ExtractedMeta | null> {
+export async function smartExtract(
+  input: string,
+): Promise<ExtractedMeta | null> {
   const v = input.trim().replace(/^https?:\/\/(?:dx\.)?doi\.org\//i, "");
   if (!v) return null;
 
@@ -34,7 +36,8 @@ async function extractByPMID(pmid: string): Promise<ExtractedMeta | null> {
   const r = data?.result?.[pmid];
   if (!r?.title) return null;
   const doi =
-    (r.articleids || []).find((a: { idtype: string }) => a.idtype === "doi")?.value ?? "";
+    (r.articleids || []).find((a: { idtype: string }) => a.idtype === "doi")
+      ?.value ?? "";
   const year = (r.pubdate || "").match(/\d{4}/)?.[0] ?? "";
   return {
     title: r.title,
@@ -60,7 +63,9 @@ async function extractByTitle(q: string): Promise<ExtractedMeta | null> {
 }
 
 function joinInfo(parts: (string | number)[]): string {
-  return parts.filter((p) => p !== "" && p !== null && p !== undefined).join(" · ");
+  return parts
+    .filter((p) => p !== "" && p !== null && p !== undefined)
+    .join(" · ");
 }
 
 function formatYear(y: unknown): string {

@@ -1,8 +1,16 @@
 import { createZToolkit } from "./utils/ztoolkit";
 import { getString, initLocale } from "./utils/locale";
 import { installToolbarButton, uninstallToolbarButton } from "./modules/dialog";
-import { registerReaderToolbar, unregisterReaderToolbar } from "./modules/reader-toolbar";
-import { setMirrors, getDefaultMirrors, getTargetCollectionId, setTargetCollectionId } from "./modules/prefs";
+import {
+  registerReaderToolbar,
+  unregisterReaderToolbar,
+} from "./modules/reader-toolbar";
+import {
+  setMirrors,
+  getDefaultMirrors,
+  getTargetCollectionId,
+  setTargetCollectionId,
+} from "./modules/prefs";
 
 async function onStartup() {
   await Promise.all([
@@ -14,7 +22,10 @@ async function onStartup() {
   initLocale();
 
   // Initialize defaults if not set
-  const mirrorsPref = Zotero.Prefs.get("extensions.zotero.scidownload.mirrors", true);
+  const mirrorsPref = Zotero.Prefs.get(
+    "extensions.zotero.scidownload.mirrors",
+    true,
+  );
   if (!mirrorsPref) {
     setMirrors(getDefaultMirrors());
   }

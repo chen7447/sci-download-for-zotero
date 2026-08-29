@@ -61,7 +61,7 @@ function renderToolbar(event: RenderToolbarEvent): void {
   btn.addEventListener("click", (ev) => {
     ev.preventDefault();
     ev.stopPropagation();
-    const item = reader.itemID ? (Zotero.Items.get(reader.itemID) || null) : null;
+    const item = reader.itemID ? Zotero.Items.get(reader.itemID) || null : null;
     const doi = item?.getField("DOI") ?? "";
     showDialog(doc.defaultView as Window, doi || undefined);
   });
@@ -73,21 +73,33 @@ function renderToolbar(event: RenderToolbarEvent): void {
 export function registerReaderToolbar(): void {
   if (onRenderToolbar) return;
   onRenderToolbar = renderToolbar;
-  const Reader = (Zotero as unknown as {
-    Reader?: {
-      registerEventListener: (type: string, handler: Handler, pluginID?: string) => void;
-    };
-  }).Reader;
-  Reader?.registerEventListener("renderToolbar", onRenderToolbar, config.addonID);
+  const Reader = (
+    Zotero as unknown as {
+      Reader?: {
+        registerEventListener: (
+          type: string,
+          handler: Handler,
+          pluginID?: string,
+        ) => void;
+      };
+    }
+  ).Reader;
+  Reader?.registerEventListener(
+    "renderToolbar",
+    onRenderToolbar,
+    config.addonID,
+  );
 }
 
 export function unregisterReaderToolbar(): void {
   if (!onRenderToolbar) return;
-  const Reader = (Zotero as unknown as {
-    Reader?: {
-      unregisterEventListener: (type: string, handler: Handler) => void;
-    };
-  }).Reader;
+  const Reader = (
+    Zotero as unknown as {
+      Reader?: {
+        unregisterEventListener: (type: string, handler: Handler) => void;
+      };
+    }
+  ).Reader;
   Reader?.unregisterEventListener("renderToolbar", onRenderToolbar);
   onRenderToolbar = null;
 }

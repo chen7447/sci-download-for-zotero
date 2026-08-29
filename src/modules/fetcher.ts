@@ -33,8 +33,9 @@ export class SciDownloadFetcher {
     onMirror?: (i: number, status: "failed" | "success") => void,
     isCancelled?: () => boolean,
   ): Promise<FindPDFResult> {
-    const statuses: ("untested" | "failed" | "success")[] =
-      new Array(mirrors.length).fill("untested");
+    const statuses: ("untested" | "failed" | "success")[] = new Array(
+      mirrors.length,
+    ).fill("untested");
     const report = (i: number, s: "failed" | "success") => {
       statuses[i] = s;
       onMirror?.(i, s);
@@ -100,7 +101,9 @@ export class SciDownloadFetcher {
       });
       const buf = resp.response as ArrayBuffer;
       if (!buf || buf.byteLength < 5) return false;
-      const head = new TextDecoder("latin1").decode(new Uint8Array(buf, 0, Math.min(1024, buf.byteLength)));
+      const head = new TextDecoder("latin1").decode(
+        new Uint8Array(buf, 0, Math.min(1024, buf.byteLength)),
+      );
       return head.includes("%PDF-");
     } catch {
       return false;
@@ -200,7 +203,10 @@ export class SciDownloadFetcher {
 
       return {
         success: true,
-        message: existingItem && targetItem === existingItem ? "dialog-item-exists" : "dialog-item-created",
+        message:
+          existingItem && targetItem === existingItem
+            ? "dialog-item-exists"
+            : "dialog-item-created",
       };
     } catch (err) {
       ztoolkit.log("SciDownload: attach failed:", err);
@@ -211,9 +217,7 @@ export class SciDownloadFetcher {
   /**
    * Find an existing Zotero item by DOI field, searching the entire library.
    */
-  private static async findItemByDOI(
-    doi: string,
-  ): Promise<Zotero.Item | null> {
+  private static async findItemByDOI(doi: string): Promise<Zotero.Item | null> {
     try {
       const s = new Zotero.Search();
       s.addCondition("DOI", "is", doi);

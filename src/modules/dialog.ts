@@ -44,21 +44,29 @@ function dumpErr(where: string, err: unknown) {
   if (stack) dbg(stack);
 }
 
-function h(doc: Document, tag: string, attrs: Record<string, string> = {}, text?: string): HTMLElement {
+function h(
+  doc: Document,
+  tag: string,
+  attrs: Record<string, string> = {},
+  text?: string,
+): HTMLElement {
   const el = doc.createElementNS(HTML_NS, tag) as HTMLElement;
   for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
   if (text !== undefined) el.textContent = text;
   return el;
 }
 
-function findInsertPoint(doc: Document): { parent: Element; before: Element | null } | null {
+function findInsertPoint(
+  doc: Document,
+): { parent: Element; before: Element | null } | null {
   const search =
     doc.getElementById("zotero-tb-search") ||
     doc.querySelector("#zotero-tb-search");
   if (search?.parentElement) {
     return { parent: search.parentElement, before: search };
   }
-  const addBtn = doc.getElementById("zotero-tb-add") || doc.querySelector("#zotero-tb-add");
+  const addBtn =
+    doc.getElementById("zotero-tb-add") || doc.querySelector("#zotero-tb-add");
   if (addBtn?.parentElement) {
     return { parent: addBtn.parentElement, before: null };
   }
@@ -73,7 +81,9 @@ function findInsertPoint(doc: Document): { parent: Element; before: Element | nu
 function createToolbarButton(doc: Document): Element {
   const xul = (doc as any).createXULElement;
   const btn: Element =
-    typeof xul === "function" ? xul.call(doc, "toolbarbutton") : doc.createElement("toolbarbutton");
+    typeof xul === "function"
+      ? xul.call(doc, "toolbarbutton")
+      : doc.createElement("toolbarbutton");
   btn.id = "scidownload-toolbar-btn";
   btn.setAttribute("class", "zotero-tb-button");
   btn.setAttribute("tooltiptext", getString("dialog-title"));
@@ -95,7 +105,12 @@ export function installToolbarButton(win: Window) {
     if (!point) {
       dbg(
         "toolbar not found. ids sample: " +
-          ["zotero-tb-search", "zotero-tb-add", "zotero-items-toolbar", "zotero-toolbar"]
+          [
+            "zotero-tb-search",
+            "zotero-tb-add",
+            "zotero-items-toolbar",
+            "zotero-toolbar",
+          ]
             .map((id) => `${id}=${!!doc.getElementById(id)}`)
             .join(", "),
       );
@@ -119,10 +134,14 @@ export function installToolbarButton(win: Window) {
 
     if (point.before) {
       point.parent.insertBefore(btn, point.before);
-      dbg(`toolbar button inserted before #${point.before.id || point.before.tagName}`);
+      dbg(
+        `toolbar button inserted before #${point.before.id || point.before.tagName}`,
+      );
     } else {
       point.parent.appendChild(btn);
-      dbg(`toolbar button appended to #${point.parent.id || point.parent.tagName}`);
+      dbg(
+        `toolbar button appended to #${point.parent.id || point.parent.tagName}`,
+      );
     }
     _button = btn;
   } catch (err) {
@@ -155,14 +174,22 @@ export function showDialog(win: Window, initialDOI?: string) {
   }
 
   const s = getString;
-  const overlay = h(doc, "div", { id: "scidownload-overlay", class: "scid-overlay" });
+  const overlay = h(doc, "div", {
+    id: "scidownload-overlay",
+    class: "scid-overlay",
+  });
   const dialog = h(doc, "div", {
     class: isDark ? "scid-dialog scid-dark" : "scid-dialog",
   });
 
   const hdr = h(doc, "div", { class: "scid-hdr" });
   hdr.appendChild(h(doc, "b", {}, s("dialog-title")));
-  const closeBtn = h(doc, "button", { class: "scid-close", type: "button" }, "✕");
+  const closeBtn = h(
+    doc,
+    "button",
+    { class: "scid-close", type: "button" },
+    "✕",
+  );
   hdr.appendChild(closeBtn);
   dialog.appendChild(hdr);
 
@@ -175,18 +202,27 @@ export function showDialog(win: Window, initialDOI?: string) {
     class: "scid-input",
   }) as HTMLInputElement;
   extractRow.appendChild(extractInput);
-  const extractBtn = h(doc, "button", {
-    id: "scid-extract-btn",
-    class: "scid-btn-extract",
-    type: "button",
-  }, s("dialog-extract")) as HTMLButtonElement;
+  const extractBtn = h(
+    doc,
+    "button",
+    {
+      id: "scid-extract-btn",
+      class: "scid-btn-extract",
+      type: "button",
+    },
+    s("dialog-extract"),
+  ) as HTMLButtonElement;
   extractRow.appendChild(extractBtn);
   dialog.appendChild(extractRow);
-  dialog.appendChild(h(doc, "div", { class: "scid-extract-tip" }, s("dialog-extract-tip")));
+  dialog.appendChild(
+    h(doc, "div", { class: "scid-extract-tip" }, s("dialog-extract-tip")),
+  );
 
   // Filled fields from extraction
   const titleRow = h(doc, "div", { class: "scid-row" });
-  titleRow.appendChild(h(doc, "label", { for: "scid-title" }, s("dialog-title-label")));
+  titleRow.appendChild(
+    h(doc, "label", { for: "scid-title" }, s("dialog-title-label")),
+  );
   const titleInput = h(doc, "input", {
     id: "scid-title",
     type: "text",
@@ -197,7 +233,9 @@ export function showDialog(win: Window, initialDOI?: string) {
   dialog.appendChild(titleRow);
 
   const infoRow = h(doc, "div", { class: "scid-row" });
-  infoRow.appendChild(h(doc, "label", { for: "scid-info" }, s("dialog-info-label")));
+  infoRow.appendChild(
+    h(doc, "label", { for: "scid-info" }, s("dialog-info-label")),
+  );
   const infoInput = h(doc, "input", {
     id: "scid-info",
     type: "text",
@@ -220,38 +258,57 @@ export function showDialog(win: Window, initialDOI?: string) {
   }) as HTMLInputElement;
   doiRow.appendChild(doiInput);
   if (initialDOI) doiInput.value = initialDOI;
-  const doiHelp = h(doc, "button", {
-    class: "scid-help",
-    type: "button",
-    title: s("dialog-doi-help"),
-  }, "?") as HTMLButtonElement;
+  const doiHelp = h(
+    doc,
+    "button",
+    {
+      class: "scid-help",
+      type: "button",
+      title: s("dialog-doi-help"),
+    },
+    "?",
+  ) as HTMLButtonElement;
   doiRow.appendChild(doiHelp);
   dialog.appendChild(doiRow);
 
   const colRow = h(doc, "div", { class: "scid-row" });
-  colRow.appendChild(h(doc, "label", { for: "scid-collection" }, s("dialog-collection-label")));
+  colRow.appendChild(
+    h(doc, "label", { for: "scid-collection" }, s("dialog-collection-label")),
+  );
   const collectionSelect = h(doc, "select", {
     id: "scid-collection",
     class: "scid-input",
   }) as HTMLSelectElement;
   colRow.appendChild(collectionSelect);
-  const searchBtn = h(doc, "button", {
-    id: "scid-search",
-    class: "scid-btn-primary",
-    type: "button",
-  }, s("dialog-search")) as HTMLButtonElement;
+  const searchBtn = h(
+    doc,
+    "button",
+    {
+      id: "scid-search",
+      class: "scid-btn-primary",
+      type: "button",
+    },
+    s("dialog-search"),
+  ) as HTMLButtonElement;
   colRow.appendChild(searchBtn);
   dialog.appendChild(colRow);
 
   dialog.appendChild(h(doc, "hr", { class: "scid-hr" }));
 
   const mirrorHdr = h(doc, "div", { class: "scid-mirror-hdr" });
-  mirrorHdr.appendChild(h(doc, "label", { for: "scid-mirrors" }, s("dialog-mirror-label")));
-  const restoreBtn = h(doc, "button", {
-    id: "scid-restore",
-    class: "scid-btn-sm",
-    type: "button",
-  }, s("dialog-restore")) as HTMLButtonElement;
+  mirrorHdr.appendChild(
+    h(doc, "label", { for: "scid-mirrors" }, s("dialog-mirror-label")),
+  );
+  const restoreBtn = h(
+    doc,
+    "button",
+    {
+      id: "scid-restore",
+      class: "scid-btn-sm",
+      type: "button",
+    },
+    s("dialog-restore"),
+  ) as HTMLButtonElement;
   mirrorHdr.appendChild(restoreBtn);
   dialog.appendChild(mirrorHdr);
 
@@ -261,18 +318,29 @@ export function showDialog(win: Window, initialDOI?: string) {
   dialog.appendChild(mirrorContainer);
 
   const progressWrap = h(doc, "div", { class: "scid-progress-wrap" });
-  const progressBar = h(doc, "div", { id: "scid-progress-bar", class: "scid-progress-bar" });
-  const progressText = h(doc, "div", { id: "scid-progress-text", class: "scid-progress-text" });
+  const progressBar = h(doc, "div", {
+    id: "scid-progress-bar",
+    class: "scid-progress-bar",
+  });
+  const progressText = h(doc, "div", {
+    id: "scid-progress-text",
+    class: "scid-progress-text",
+  });
   progressWrap.appendChild(progressBar);
   progressWrap.appendChild(progressText);
   dialog.appendChild(progressWrap);
 
   const footer = h(doc, "div", { class: "scid-footer" });
-  const scihubLink = h(doc, "a", {
-    id: "scid-scihub-link",
-    href: "#",
-    class: "scid-link",
-  }, s("dialog-scihub-link"));
+  const scihubLink = h(
+    doc,
+    "a",
+    {
+      id: "scid-scihub-link",
+      href: "#",
+      class: "scid-link",
+    },
+    s("dialog-scihub-link"),
+  );
   footer.appendChild(scihubLink);
   dialog.appendChild(footer);
 
@@ -296,26 +364,64 @@ export function showDialog(win: Window, initialDOI?: string) {
   });
 
   fillCollectionSelect(doc, collectionSelect);
-  renderMirrorList(doc, mirrorContainer, getMirrors(), () => saveMirrorValues(mirrorContainer));
+  renderMirrorList(doc, mirrorContainer, getMirrors(), () =>
+    saveMirrorValues(mirrorContainer),
+  );
   restoreBtn.addEventListener("click", () => {
     resetMirrors();
-    renderMirrorList(doc, mirrorContainer, getMirrors(), () => saveMirrorValues(mirrorContainer));
+    renderMirrorList(doc, mirrorContainer, getMirrors(), () =>
+      saveMirrorValues(mirrorContainer),
+    );
     setProgress(progressText, progressBar, "ok", "mirrors restored");
   });
   searchBtn.addEventListener("click", () => {
-    void onSearch(win, doiInput, collectionSelect, mirrorContainer, progressText, progressBar, searchBtn, () => !overlay.isConnected);
+    void onSearch(
+      win,
+      doiInput,
+      collectionSelect,
+      mirrorContainer,
+      progressText,
+      progressBar,
+      searchBtn,
+      () => !overlay.isConnected,
+    );
   });
   doiInput.addEventListener("keydown", (e: KeyboardEvent) => {
     if (e.key === "Enter") {
-      void onSearch(win, doiInput, collectionSelect, mirrorContainer, progressText, progressBar, searchBtn, () => !overlay.isConnected);
+      void onSearch(
+        win,
+        doiInput,
+        collectionSelect,
+        mirrorContainer,
+        progressText,
+        progressBar,
+        searchBtn,
+        () => !overlay.isConnected,
+      );
     }
   });
   extractBtn.addEventListener("click", () => {
-    void onExtract(extractInput, titleInput, infoInput, doiInput, progressText, progressBar, extractBtn);
+    void onExtract(
+      extractInput,
+      titleInput,
+      infoInput,
+      doiInput,
+      progressText,
+      progressBar,
+      extractBtn,
+    );
   });
   extractInput.addEventListener("keydown", (e: KeyboardEvent) => {
     if (e.key === "Enter") {
-      void onExtract(extractInput, titleInput, infoInput, doiInput, progressText, progressBar, extractBtn);
+      void onExtract(
+        extractInput,
+        titleInput,
+        infoInput,
+        doiInput,
+        progressText,
+        progressBar,
+        extractBtn,
+      );
     }
   });
   doiInput.focus();
@@ -403,7 +509,8 @@ function injectDialogStyles(doc: Document) {
 // ── Collection dropdown ──
 
 function fillCollectionSelect(doc: Document, select: HTMLSelectElement) {
-  const collections: any[] = (Zotero.Collections as any).getByLibrary(1, true) || [];
+  const collections: any[] =
+    (Zotero.Collections as any).getByLibrary(1, true) || [];
   const byParent = new Map<number, any[]>();
   for (const c of collections) {
     const key = (c as any).parentID || 0;
@@ -423,10 +530,17 @@ function fillCollectionSelect(doc: Document, select: HTMLSelectElement) {
   walk(0, 0);
 
   const saved = getTargetCollectionId();
-  const opt = h(doc, "option", { value: "" }, getString("dialog-collection-default"));
+  const opt = h(
+    doc,
+    "option",
+    { value: "" },
+    getString("dialog-collection-default"),
+  );
   select.appendChild(opt);
   for (const c of flat) {
-    select.appendChild(h(doc, "option", { value: String(c.id) }, "　".repeat(c.depth) + c.name));
+    select.appendChild(
+      h(doc, "option", { value: String(c.id) }, "　".repeat(c.depth) + c.name),
+    );
   }
   if (saved !== null && flat.some((f) => f.id === saved)) {
     select.value = String(saved);
@@ -481,8 +595,11 @@ function refreshAllPriorityCells(container: HTMLElement) {
   const prios = getMirrorPriorities();
   container.querySelectorAll(".scid-mirror-prio").forEach((btn: Element) => {
     const row = (btn as HTMLElement).closest(".scid-mirror-row");
-    const input = row?.querySelector(".scid-mirror-input") as HTMLInputElement | null;
-    if (input) updatePriorityCell(btn as HTMLElement, prios[input.value.trim()]);
+    const input = row?.querySelector(
+      ".scid-mirror-input",
+    ) as HTMLInputElement | null;
+    if (input)
+      updatePriorityCell(btn as HTMLElement, prios[input.value.trim()]);
   });
 }
 
@@ -499,7 +616,9 @@ function renderMirrorList(
   // Column header
   const hdr = h(doc, "div", { class: "scid-mirror-hdr" });
   hdr.appendChild(h(doc, "span", { class: "scid-mirror-hdr-prio" }, "优先级"));
-  hdr.appendChild(h(doc, "span", { class: "scid-mirror-hdr-addr" }, "镜像地址"));
+  hdr.appendChild(
+    h(doc, "span", { class: "scid-mirror-hdr-addr" }, "镜像地址"),
+  );
   hdr.appendChild(h(doc, "span", { class: "scid-mirror-hdr-status" }, "状态"));
   container.appendChild(hdr);
 
@@ -558,10 +677,15 @@ function renderMirrorList(
 
     // User-added mirrors (not matching any builtin default) are deletable
     if (!isDefaultMirror(mirror)) {
-      const delBtn = h(doc, "button", {
-        class: "scid-btn-del",
-        type: "button",
-      }, "−");
+      const delBtn = h(
+        doc,
+        "button",
+        {
+          class: "scid-btn-del",
+          type: "button",
+        },
+        "−",
+      );
       delBtn.addEventListener("click", () => {
         setMirrorPriority(mirror, null);
         mirrors.splice(i, 1);
@@ -573,10 +697,15 @@ function renderMirrorList(
 
     // Add [+] button on the last row
     if (i === mirrors.length - 1) {
-      const addBtn = h(doc, "button", {
-        class: "scid-btn-add",
-        type: "button",
-      }, "+");
+      const addBtn = h(
+        doc,
+        "button",
+        {
+          class: "scid-btn-add",
+          type: "button",
+        },
+        "+",
+      );
       addBtn.addEventListener("click", () => {
         mirrors.push("");
         renderMirrorList(doc, container, mirrors, onChange);
@@ -613,10 +742,15 @@ function renderMirrorList(
     sbStyle.fontFamily = "monospace";
     sbStyle.flexShrink = "0";
     row.appendChild(statusBox);
-    const addBtn = h(doc, "button", {
-      class: "scid-btn-add",
-      type: "button",
-    }, "+");
+    const addBtn = h(
+      doc,
+      "button",
+      {
+        class: "scid-btn-add",
+        type: "button",
+      },
+      "+",
+    );
     addBtn.addEventListener("click", () => {
       mirrors.push("");
       renderMirrorList(doc, container, mirrors, onChange);
@@ -642,14 +776,26 @@ async function onExtract(
   const raw = extractInput.value.trim();
   const s = getString;
 
-  if (!raw) return setProgress(progressText, progressBar, "err", s("dialog-extract-empty"));
+  if (!raw)
+    return setProgress(
+      progressText,
+      progressBar,
+      "err",
+      s("dialog-extract-empty"),
+    );
 
   extractBtn.disabled = true;
   setProgress(progressText, progressBar, "wait", s("dialog-extracting"), 10);
   try {
     const meta: ExtractedMeta | null = await smartExtract(raw);
     if (!meta || !meta.title) {
-      setProgress(progressText, progressBar, "err", s("dialog-extract-fail"), 100);
+      setProgress(
+        progressText,
+        progressBar,
+        "err",
+        s("dialog-extract-fail"),
+        100,
+      );
       return;
     }
     titleInput.value = meta.title;
@@ -658,7 +804,13 @@ async function onExtract(
     setProgress(progressText, progressBar, "ok", s("dialog-extract-ok"), 100);
   } catch (err) {
     ztoolkit.log("SciDownload: extract failed:", err);
-    setProgress(progressText, progressBar, "err", s("dialog-extract-fail"), 100);
+    setProgress(
+      progressText,
+      progressBar,
+      "err",
+      s("dialog-extract-fail"),
+      100,
+    );
   } finally {
     extractBtn.disabled = false;
   }
@@ -674,17 +826,35 @@ async function onSearch(
   searchBtn: HTMLButtonElement,
   isCancelled: () => boolean,
 ) {
-  const doi = doiInput.value.trim().replace(/^https?:\/\/(?:dx\.)?doi\.org\//i, '');
+  const doi = doiInput.value
+    .trim()
+    .replace(/^https?:\/\/(?:dx\.)?doi\.org\//i, "");
   const s = getString;
 
-  if (!doi) return setProgress(progressText, progressBar, "err", s("dialog-doi-missing"));
+  if (!doi)
+    return setProgress(
+      progressText,
+      progressBar,
+      "err",
+      s("dialog-doi-missing"),
+    );
   if (!DOI_REGEX.test(doi))
-    return setProgress(progressText, progressBar, "err", s("dialog-doi-invalid"));
+    return setProgress(
+      progressText,
+      progressBar,
+      "err",
+      s("dialog-doi-invalid"),
+    );
 
   saveMirrorValues(mirrorContainer);
   const mirrors = getMirrors();
   if (mirrors.length === 0)
-    return setProgress(progressText, progressBar, "err", s("dialog-mirror-empty"));
+    return setProgress(
+      progressText,
+      progressBar,
+      "err",
+      s("dialog-mirror-empty"),
+    );
 
   const collectionId =
     collectionSelect.value === "" ? null : Number(collectionSelect.value);
@@ -698,7 +868,13 @@ async function onSearch(
     const metadata = await lookupCrossRef(doi);
     if (!metadata) {
       // Metadata is optional — still try Sci-Hub, but say why the fields are blank.
-      setProgress(progressText, progressBar, "err", s("dialog-crossref-fail"), 15);
+      setProgress(
+        progressText,
+        progressBar,
+        "err",
+        s("dialog-crossref-fail"),
+        15,
+      );
     }
 
     // Reset status cells to "[ ]" — untried mirrors stay visible.
@@ -713,22 +889,33 @@ async function onSearch(
     const { order, orderIndexOf } = orderMirrors(mirrors, prios);
     const total = order.length;
     let tried = 0;
-    const findResult = await SciDownloadFetcher.findPDFUrl(doi, order, (k, status) => {
-      tried++;
-      const disp = orderIndexOf[k];
-      const div = statusDivs[disp] as HTMLElement | undefined;
-      if (div) {
-        if (status === "success") {
-          div.textContent = "[✓]";
-          div.style.color = "#2e7d32";
-        } else {
-          div.textContent = "[✗]";
-          div.style.color = "#d32f2f";
+    const findResult = await SciDownloadFetcher.findPDFUrl(
+      doi,
+      order,
+      (k, status) => {
+        tried++;
+        const disp = orderIndexOf[k];
+        const div = statusDivs[disp] as HTMLElement | undefined;
+        if (div) {
+          if (status === "success") {
+            div.textContent = "[✓]";
+            div.style.color = "#2e7d32";
+          } else {
+            div.textContent = "[✗]";
+            div.style.color = "#d32f2f";
+          }
         }
-      }
-      const pct = Math.min(65, 40 + (tried / total) * 25);
-      setProgress(progressText, progressBar, "wait", `Sci-Hub ... (${tried}/${total})`, pct);
-    }, isCancelled);
+        const pct = Math.min(65, 40 + (tried / total) * 25);
+        setProgress(
+          progressText,
+          progressBar,
+          "wait",
+          `Sci-Hub ... (${tried}/${total})`,
+          pct,
+        );
+      },
+      isCancelled,
+    );
     const pdfUrl = findResult.url;
 
     if (!pdfUrl) {
@@ -745,11 +932,25 @@ async function onSearch(
       metadata,
       collectionId,
     );
-    const msg = result.success ? s(result.message as any) : s(result.message as any);
-    setProgress(progressText, progressBar, result.success ? "ok" : "err", msg, 100);
+    const msg = result.success
+      ? s(result.message as any)
+      : s(result.message as any);
+    setProgress(
+      progressText,
+      progressBar,
+      result.success ? "ok" : "err",
+      msg,
+      100,
+    );
   } catch (err) {
     ztoolkit.log("SciDownload: search failed:", err);
-    setProgress(progressText, progressBar, "err", s("dialog-download-fail"), 100);
+    setProgress(
+      progressText,
+      progressBar,
+      "err",
+      s("dialog-download-fail"),
+      100,
+    );
   } finally {
     searchBtn.disabled = false;
   }
@@ -765,7 +966,8 @@ function setProgress(
   pct?: number,
 ) {
   textEl.textContent = msg;
-  textEl.style.color = type === "err" ? "#d32f2f" : type === "ok" ? "#2e7d32" : "#1976d2";
+  textEl.style.color =
+    type === "err" ? "#d32f2f" : type === "ok" ? "#2e7d32" : "#1976d2";
 
   // Build or reuse the fill bar
   let fill = barEl.firstChild as HTMLElement | null;
@@ -774,6 +976,8 @@ function setProgress(
     fill.className = "scid-progress-bar-fill";
     barEl.appendChild(fill);
   }
-  fill.style.width = (pct ?? (type === "err" ? 100 : type === "ok" ? 100 : 30)) + "%";
-  fill.style.background = type === "err" ? "#d32f2f" : type === "ok" ? "#2e7d32" : "#1976d2";
+  fill.style.width =
+    (pct ?? (type === "err" ? 100 : type === "ok" ? 100 : 30)) + "%";
+  fill.style.background =
+    type === "err" ? "#d32f2f" : type === "ok" ? "#2e7d32" : "#1976d2";
 }
