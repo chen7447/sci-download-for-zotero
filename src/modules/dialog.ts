@@ -372,7 +372,7 @@ export function showDialog(win: Window, initialDOI?: string) {
     renderMirrorList(doc, mirrorContainer, getMirrors(), () =>
       saveMirrorValues(mirrorContainer),
     );
-    setProgress(progressText, progressBar, "ok", "mirrors restored");
+    setProgress(progressText, progressBar, "ok", s("dialog-mirrors-restored"));
   });
   searchBtn.addEventListener("click", () => {
     void onSearch(
@@ -615,11 +615,30 @@ function renderMirrorList(
 
   // Column header
   const hdr = h(doc, "div", { class: "scid-mirror-hdr" });
-  hdr.appendChild(h(doc, "span", { class: "scid-mirror-hdr-prio" }, "优先级"));
   hdr.appendChild(
-    h(doc, "span", { class: "scid-mirror-hdr-addr" }, "镜像地址"),
+    h(
+      doc,
+      "span",
+      { class: "scid-mirror-hdr-prio" },
+      getString("dialog-mirror-col-priority"),
+    ),
   );
-  hdr.appendChild(h(doc, "span", { class: "scid-mirror-hdr-status" }, "状态"));
+  hdr.appendChild(
+    h(
+      doc,
+      "span",
+      { class: "scid-mirror-hdr-addr" },
+      getString("dialog-mirror-col-address"),
+    ),
+  );
+  hdr.appendChild(
+    h(
+      doc,
+      "span",
+      { class: "scid-mirror-hdr-status" },
+      getString("dialog-mirror-col-status"),
+    ),
+  );
   container.appendChild(hdr);
 
   const prios = getMirrorPriorities();
@@ -631,7 +650,7 @@ function renderMirrorList(
     const prioCell = h(doc, "button", {
       class: "scid-mirror-prio",
       type: "button",
-      title: "点击设置/取消优先级",
+      title: getString("dialog-mirror-prio-hint"),
     }) as HTMLButtonElement;
     updatePriorityCell(prioCell, prios[mirror.trim()]);
     prioCell.addEventListener("click", () => {
@@ -864,7 +883,13 @@ async function onSearch(
 
   try {
     // Step 1: CrossRef
-    setProgress(progressText, progressBar, "wait", "CrossRef ...", 15);
+    setProgress(
+      progressText,
+      progressBar,
+      "wait",
+      s("dialog-crossref-lookup"),
+      15,
+    );
     const metadata = await lookupCrossRef(doi);
     if (!metadata) {
       // Metadata is optional — still try Sci-Hub, but say why the fields are blank.
@@ -925,16 +950,14 @@ async function onSearch(
 
     // Step 3: download & attach
     if (isCancelled()) return;
-    setProgress(progressText, progressBar, "wait", "Downloading...", 65);
+    setProgress(progressText, progressBar, "wait", s("dialog-downloading"), 65);
     const result = await SciDownloadFetcher.attachPdfToZotero(
       pdfUrl,
       doi,
       metadata,
       collectionId,
     );
-    const msg = result.success
-      ? s(result.message as any)
-      : s(result.message as any);
+    const msg = s(result.message as any);
     setProgress(
       progressText,
       progressBar,
