@@ -1,6 +1,6 @@
 import { config } from "../../package.json";
 import { getString } from "../utils/locale";
-import { SciDownloadFetcher, FindPDFResult } from "./fetcher";
+import { SciDownloadFetcher } from "./fetcher";
 import { lookupCrossRef } from "./crossref";
 import { smartExtract, ExtractedMeta } from "./metadata";
 import {
@@ -19,7 +19,7 @@ let _dialogOpen = false;
 // ponytail: styles are per-document; track injected documents, not a single flag
 const _styledDocs = new WeakSet<Document>();
 
-const DOI_REGEX = /^10\.\d{4,9}\/[-._;()\/:a-zA-Z0-9]+$/;
+const DOI_REGEX = /^10\.\d{4,9}\/[-._;()/:a-zA-Z0-9]+$/;
 export const ICON_URI = `chrome://${config.addonRef}/content/icons/download.svg`;
 
 const HTML_NS = "http://www.w3.org/1999/xhtml";

@@ -1,4 +1,4 @@
-import { lookupCrossRef, CrossRefMetadata } from "./crossref";
+import { CrossRefMetadata } from "./crossref";
 import { httpGet } from "../utils/http";
 
 // ponytail: single-attempt per mirror, no retry abstraction

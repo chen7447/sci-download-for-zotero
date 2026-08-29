@@ -1,16 +1,11 @@
 import { createZToolkit } from "./utils/ztoolkit";
-import { getString, initLocale } from "./utils/locale";
+import { initLocale } from "./utils/locale";
 import { installToolbarButton, uninstallToolbarButton } from "./modules/dialog";
 import {
   registerReaderToolbar,
   unregisterReaderToolbar,
 } from "./modules/reader-toolbar";
-import {
-  setMirrors,
-  getDefaultMirrors,
-  getTargetCollectionId,
-  setTargetCollectionId,
-} from "./modules/prefs";
+import { setMirrors, getDefaultMirrors } from "./modules/prefs";
 
 async function onStartup() {
   await Promise.all([
@@ -45,7 +40,7 @@ async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
   installToolbarButton(win);
 }
 
-async function onMainWindowUnload(win: Window): Promise<void> {
+async function onMainWindowUnload(_win: Window): Promise<void> {
   uninstallToolbarButton();
   ztoolkit.unregisterAll();
   addon.data.dialog?.window?.close();

@@ -10,7 +10,6 @@ function createZToolkit() {
 }
 
 function initZToolkit(_ztoolkit: ReturnType<typeof createZToolkit>) {
-  const env = __env__;
   _ztoolkit.basicOptions.log.prefix = `[${config.addonName}]`;
   // keep logs in Zotero Debug Output even for packaged builds
   _ztoolkit.basicOptions.log.disableConsole = false;
@@ -21,20 +20,4 @@ function initZToolkit(_ztoolkit: ReturnType<typeof createZToolkit>) {
     "default",
     `chrome://${config.addonRef}/content/icons/download.svg`,
   );
-}
-
-import { BasicTool, unregister } from "zotero-plugin-toolkit";
-import { UITool } from "zotero-plugin-toolkit";
-
-class MyToolkit extends BasicTool {
-  UI: UITool;
-
-  constructor() {
-    super();
-    this.UI = new UITool(this);
-  }
-
-  unregisterAll() {
-    unregister(this);
-  }
 }
