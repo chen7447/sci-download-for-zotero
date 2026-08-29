@@ -1,10 +1,17 @@
-import { lookupCrossRef, CrossRefMetadata, CrossrefAuthor } from "./crossref";
+import { lookupCrossRef, CrossRefMetadata } from "./crossref";
+import { httpGet } from "../utils/http";
 
 // ponytail: single-attempt per mirror, no retry abstraction
 const PDF_NOT_FOUND_REGEXES = [
   /Please try to search again using DOI/im,
   /статья не найдена в базе/im,
 ];
+
+// Mirrors fingerprint clients; keep the same UA used by zotero-scipdf so the
+// article page (not a block page) is served.
+const MIRROR_UA =
+  "Mozilla/5.0 (iPhone; CPU iPhone OS 11_3_1 like Mac OS X) AppleWebKit/603.1.30 " +
+  "(KHTML, like Gecko) Version/10.0 Mobile/14E304 Safari/602.1";
 
 export interface FindPDFResult {
   url: string | null;
@@ -17,12 +24,14 @@ export class SciDownloadFetcher {
    * Try mirrors in order. Return the first PDF URL found, or null,
    * plus per-mirror status for UI feedback.
    * `onMirror` fires after each mirror is tried (failed or success), so the UI
-   * can render status in real time.
+   * can render status in real time. `isCancelled` is polled between mirrors;
+   * when it returns true the loop stops without further requests.
    */
   static async findPDFUrl(
     doi: string,
     mirrors: string[],
     onMirror?: (i: number, status: "failed" | "success") => void,
+    isCancelled?: () => boolean,
   ): Promise<FindPDFResult> {
     const statuses: ("untested" | "failed" | "success")[] =
       new Array(mirrors.length).fill("untested");
@@ -32,23 +41,16 @@ export class SciDownloadFetcher {
     };
 
     for (let i = 0; i < mirrors.length; i++) {
+      if (isCancelled?.()) break;
       const base = mirrors[i];
       try {
         const url = base.endsWith("/") ? `${base}${doi}` : `${base}/${doi}`;
         ztoolkit.log(`SciDownload: trying ${url}`);
 
-        const resp = await Zotero.HTTP.request("GET", url, {
+        const resp = await httpGet(url, {
           responseType: "document",
-          headers: {
-            "User-Agent":
-              "Mozilla/5.0 (iPhone; CPU iPhone OS 11_3_1 like Mac OS X) AppleWebKit/603.1.30 (KHTML, like Gecko) Version/10.0 Mobile/14E304 Safari/602.1",
-          },
+          headers: { "User-Agent": MIRROR_UA },
         });
-
-        if (resp.status !== 200) {
-          report(i, "failed");
-          continue;
-        }
 
         // Try to extract PDF URL from #pdf iframe
         if (resp.responseXML) {
@@ -59,20 +61,23 @@ export class SciDownloadFetcher {
             const pdfUrl = new URL(pdfSrc, url);
             pdfUrl.protocol = "https:";
             pdfUrl.hash = ""; // strip fragment like #view=FitH
+            // Captcha / block pages are served at the iframe URL too; only a
+            // real %PDF- payload counts as success.
+            if (!(await this.looksLikePdf(pdfUrl.href))) {
+              ztoolkit.log(`SciDownload: non-PDF payload at ${pdfUrl.href}`);
+              report(i, "failed");
+              continue;
+            }
             report(i, "success");
             return { url: pdfUrl.href, statuses };
           }
         }
 
-        // Check if PDF not available
+        // No #pdf iframe: either an explicit "not found" page or anything else
         const body = resp.responseXML?.querySelector("body");
         if (body && this.pdfNotAvailable(body)) {
           ztoolkit.log(`SciDownload: PDF not available at ${url}`);
-          report(i, "failed");
-          continue;
         }
-
-        // Reached here: response OK but no PDF found → mark failed
         report(i, "failed");
       } catch (err) {
         ztoolkit.log(`SciDownload: mirror ${base} failed:`, err);
@@ -80,6 +85,42 @@ export class SciDownloadFetcher {
       }
     }
     return { url: null, statuses };
+  }
+
+  /**
+   * Lightweight content check for a candidate PDF URL: fetch the first kilobyte
+   * (Range; servers that ignore it answer with the full body) and look for the
+   * %PDF- signature, tolerating junk bytes before it as Acrobat does.
+   */
+  private static async looksLikePdf(url: string): Promise<boolean> {
+    try {
+      const resp = await httpGet(url, {
+        responseType: "arraybuffer",
+        headers: { "User-Agent": MIRROR_UA, Range: "bytes=0-1023" },
+      });
+      const buf = resp.response as ArrayBuffer;
+      if (!buf || buf.byteLength < 5) return false;
+      const head = new TextDecoder("latin1").decode(new Uint8Array(buf, 0, Math.min(1024, buf.byteLength)));
+      return head.includes("%PDF-");
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Whether the item already carries a PDF attachment. Checked before every
+   * import so re-downloading never stacks a second copy of the same PDF.
+   */
+  static hasPdfAttachment(item: Zotero.Item): boolean {
+    try {
+      const ids = item.getAttachments() as number[];
+      return ids.some((id) => {
+        const a = Zotero.Items.get(id);
+        return !!a && (a as any).attachmentContentType === "application/pdf";
+      });
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -142,7 +183,10 @@ export class SciDownloadFetcher {
         targetItem = item;
       }
 
-      // D: Attach PDF with resolve:false to skip auto-matching
+      // D: Attach PDF, but never stack a second copy on an item that has one
+      if (this.hasPdfAttachment(targetItem)) {
+        return { success: true, message: "dialog-pdf-exists" };
+      }
       await Zotero.Attachments.importFromURL({
         url: pdfUrl,
         parentItemID: targetItem.id,

@@ -29,4 +29,5 @@ dialog-crossref-fail = CrossRef 查询失败
 dialog-no-pdf = Sci-Hub 可能没有这篇文章，2021 年后的新文章尤其容易缺失
 dialog-item-exists = PDF 已附加到已有条目
 dialog-item-created = 已创建新条目并附加 PDF
+dialog-pdf-exists = 该条目已附加 PDF，已跳过下载
 dialog-close = 关闭

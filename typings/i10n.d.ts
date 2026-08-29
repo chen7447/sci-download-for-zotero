@@ -29,6 +29,7 @@ export type FluentMessageId =
   | 'dialog-mirror-label'
   | 'dialog-mirror-placeholder'
   | 'dialog-no-pdf'
+  | 'dialog-pdf-exists'
   | 'dialog-restore'
   | 'dialog-scihub-link'
   | 'dialog-search'

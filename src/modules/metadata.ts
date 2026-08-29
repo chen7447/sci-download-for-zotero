@@ -1,4 +1,5 @@
 import { lookupCrossRef, CrossrefAuthor } from "./crossref";
+import { httpGet } from "../utils/http";
 
 // ponytail: three regexes, three public GETs, no framework
 export interface ExtractedMeta {
@@ -78,7 +79,7 @@ function formatAuthors(list: CrossrefAuthor[]): string {
 }
 
 async function fetchJSON(url: string): Promise<any> {
-  const resp = await Zotero.HTTP.request("GET", url, {
+  const resp = await httpGet(url, {
     headers: { "User-Agent": "Zotero-SciDownload/0.1" },
   });
   if (resp.status !== 200) return null;

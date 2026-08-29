@@ -113,8 +113,9 @@ export function installToolbarButton(win: Window) {
         _dialogOpen = false;
       }
     };
+    // XUL toolbarbuttons fire both click and command on mouse press; listening
+    // to both rebuilt the dialog twice per click. command also covers keyboard.
     btn.addEventListener("command", open);
-    btn.addEventListener("click", open);
 
     if (point.before) {
       point.parent.insertBefore(btn, point.before);
@@ -302,11 +303,11 @@ export function showDialog(win: Window, initialDOI?: string) {
     setProgress(progressText, progressBar, "ok", "mirrors restored");
   });
   searchBtn.addEventListener("click", () => {
-    void onSearch(win, doiInput, collectionSelect, mirrorContainer, progressText, progressBar, searchBtn);
+    void onSearch(win, doiInput, collectionSelect, mirrorContainer, progressText, progressBar, searchBtn, () => !overlay.isConnected);
   });
   doiInput.addEventListener("keydown", (e: KeyboardEvent) => {
     if (e.key === "Enter") {
-      void onSearch(win, doiInput, collectionSelect, mirrorContainer, progressText, progressBar, searchBtn);
+      void onSearch(win, doiInput, collectionSelect, mirrorContainer, progressText, progressBar, searchBtn, () => !overlay.isConnected);
     }
   });
   extractBtn.addEventListener("click", () => {
@@ -671,6 +672,7 @@ async function onSearch(
   progressText: HTMLElement,
   progressBar: HTMLElement,
   searchBtn: HTMLButtonElement,
+  isCancelled: () => boolean,
 ) {
   const doi = doiInput.value.trim().replace(/^https?:\/\/(?:dx\.)?doi\.org\//i, '');
   const s = getString;
@@ -694,6 +696,10 @@ async function onSearch(
     // Step 1: CrossRef
     setProgress(progressText, progressBar, "wait", "CrossRef ...", 15);
     const metadata = await lookupCrossRef(doi);
+    if (!metadata) {
+      // Metadata is optional — still try Sci-Hub, but say why the fields are blank.
+      setProgress(progressText, progressBar, "err", s("dialog-crossref-fail"), 15);
+    }
 
     // Reset status cells to "[ ]" — untried mirrors stay visible.
     const statusDivs = mirrorContainer.querySelectorAll(".scid-mirror-status");
@@ -722,7 +728,7 @@ async function onSearch(
       }
       const pct = Math.min(65, 40 + (tried / total) * 25);
       setProgress(progressText, progressBar, "wait", `Sci-Hub ... (${tried}/${total})`, pct);
-    });
+    }, isCancelled);
     const pdfUrl = findResult.url;
 
     if (!pdfUrl) {
@@ -731,6 +737,7 @@ async function onSearch(
     }
 
     // Step 3: download & attach
+    if (isCancelled()) return;
     setProgress(progressText, progressBar, "wait", "Downloading...", 65);
     const result = await SciDownloadFetcher.attachPdfToZotero(
       pdfUrl,

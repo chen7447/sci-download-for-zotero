@@ -29,4 +29,5 @@ dialog-crossref-fail = CrossRef lookup failed
 dialog-no-pdf = Sci-Hub may not have this article, especially for post-2022 publications
 dialog-item-exists = PDF attached to existing item
 dialog-item-created = New item created with PDF attached
+dialog-pdf-exists = Item already has a PDF — download skipped
 dialog-close = Close
