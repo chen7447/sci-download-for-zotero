@@ -24,6 +24,7 @@ dialog-doi-invalid = Invalid DOI format
 dialog-doi-missing = Please enter a DOI
 dialog-mirror-empty = Please add at least one Sci-Hub mirror site
 dialog-crossref-lookup = Looking up metadata (CrossRef)...
+dialog-scihub-trying = Trying Sci-Hub mirrors ({$tried}/{$total})...
 dialog-crossref-fail = CrossRef lookup failed — Sci-Hub will still be tried
 dialog-no-pdf = Sci-Hub may not have this article, especially for post-2021 publications
 dialog-item-exists = PDF attached to existing item

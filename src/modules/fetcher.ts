@@ -13,39 +13,71 @@ const MIRROR_UA =
   "Mozilla/5.0 (iPhone; CPU iPhone OS 11_3_1 like Mac OS X) AppleWebKit/603.1.30 " +
   "(KHTML, like Gecko) Version/10.0 Mobile/14E304 Safari/602.1";
 
+export type MirrorStatus =
+  | "success" // verified %PDF- payload found
+  | "failed" // responded, but no usable PDF link (incl. captcha pages)
+  | "notfound" // explicit "article not in database" answer (or 404)
+  | "error" // network problem, timeout, or non-404 HTTP error
+  | "skipped"; // aborted mid-race, or never attempted
+
 export class SciDownloadFetcher {
+  // Mirrors are tried in parallel within each window; the first mirror to
+  // yield a verified PDF wins and the rest of its window is aborted.
+  private static readonly RACE_WINDOW = 3;
+
   /**
-   * Try mirrors in order. Return the first PDF URL found, or null.
-   * `onMirror` fires after each mirror is tried (failed or success), so the UI
-   * can render status in real time. `isCancelled` is polled between mirrors;
-   * when it returns true the loop stops without further requests.
+   * Try mirrors in order, `RACE_WINDOW` at a time. Return the first PDF URL
+   * found, or null.
+   * `onMirror` fires as each mirror settles, so the UI can render status in
+   * real time. `isCancelled` is polled between windows; when it returns true
+   * the loop stops without further requests.
    */
   static async findPDFUrl(
     doi: string,
     mirrors: string[],
-    onMirror?: (i: number, status: "failed" | "success") => void,
+    onMirror?: (i: number, status: MirrorStatus) => void,
     isCancelled?: () => boolean,
   ): Promise<string | null> {
-    const report = (i: number, s: "failed" | "success") => {
+    // Default "skipped": mirrors never attempted (cancelled run, or a race
+    // won before reaching them) surface as skipped in the UI.
+    const statuses: MirrorStatus[] = new Array(mirrors.length).fill("skipped");
+    const report = (i: number, s: MirrorStatus) => {
+      if (statuses[i] === s) return;
+      statuses[i] = s;
       onMirror?.(i, s);
     };
 
-    for (let i = 0; i < mirrors.length; i++) {
+    for (let start = 0; start < mirrors.length; start += this.RACE_WINDOW) {
       if (isCancelled?.()) break;
-      const base = mirrors[i];
-      try {
-        const url = base.endsWith("/") ? `${base}${doi}` : `${base}/${doi}`;
-        ztoolkit.log(`SciDownload: trying ${url}`);
 
-        const resp = await httpGet(url, {
-          responseType: "document",
-          headers: { "User-Agent": MIRROR_UA },
-        });
+      const batch: number[] = [];
+      for (
+        let i = start;
+        i < Math.min(mirrors.length, start + this.RACE_WINDOW);
+        i++
+      ) {
+        batch.push(i);
+      }
 
-        // Try to extract PDF URL from #pdf iframe
-        if (resp.responseXML) {
-          const pdfSrc = (resp.responseXML as Document)
-            .querySelector("#pdf")
+      // When one mirror wins, the rest of the window is aborted; their
+      // rejections must not be mistaken for network errors.
+      let batchCancelled = false;
+      const cancels: Array<() => void> = [];
+
+      const attempts = batch.map(async (i) => {
+        const base = mirrors[i];
+        try {
+          const url = this.mirrorUrl(base, doi);
+          ztoolkit.log(`SciDownload: trying ${url}`);
+          const resp = await httpGet(url, {
+            responseType: "document",
+            headers: { "User-Agent": MIRROR_UA },
+            cancellerReceiver: (c: () => void) => cancels.push(c),
+          });
+
+          // Try to extract PDF URL from #pdf iframe
+          const pdfSrc = (resp.responseXML as Document | null)
+            ?.querySelector("#pdf")
             ?.getAttribute("src");
           if (pdfSrc) {
             const pdfUrl = new URL(pdfSrc, url);
@@ -55,26 +87,53 @@ export class SciDownloadFetcher {
             // real %PDF- payload counts as success.
             if (!(await this.looksLikePdf(pdfUrl.href))) {
               ztoolkit.log(`SciDownload: non-PDF payload at ${pdfUrl.href}`);
-              report(i, "failed");
-              continue;
+              return { i, status: "failed" as const };
             }
-            report(i, "success");
-            return pdfUrl.href;
+            return { i, url: pdfUrl.href, status: "success" as const };
           }
-        }
 
-        // No #pdf iframe: either an explicit "not found" page or anything else
-        const body = resp.responseXML?.querySelector("body");
-        if (body && this.pdfNotAvailable(body)) {
-          ztoolkit.log(`SciDownload: PDF not available at ${url}`);
+          // No #pdf iframe: an explicit "not found" page or anything else
+          const body = resp.responseXML?.querySelector("body");
+          if (body && this.pdfNotAvailable(body)) {
+            ztoolkit.log(`SciDownload: PDF not available at ${url}`);
+            return { i, status: "notfound" as const };
+          }
+          return { i, status: "failed" as const };
+        } catch (err) {
+          ztoolkit.log(`SciDownload: mirror ${base} failed:`, err);
+          const status: MirrorStatus = batchCancelled
+            ? "skipped"
+            : (err as any)?.status === 404
+              ? "notfound"
+              : "error";
+          return { i, status };
         }
-        report(i, "failed");
-      } catch (err) {
-        ztoolkit.log(`SciDownload: mirror ${base} failed:`, err);
-        report(i, "failed");
-      }
+      });
+
+      const batchWinner = await new Promise<string | null>((resolveBatch) => {
+        let remaining = batch.length;
+        let winner: string | null = null;
+        for (const p of attempts) {
+          void p.then((r) => {
+            if (r.url && !winner) {
+              winner = r.url;
+              batchCancelled = true;
+              for (const c of cancels) c();
+            }
+            report(r.i, r.url ? "success" : r.status);
+            if (winner) resolveBatch(winner);
+            else if (--remaining === 0) resolveBatch(null);
+          });
+        }
+      });
+
+      if (batchWinner) return batchWinner;
     }
     return null;
+  }
+
+  private static mirrorUrl(base: string, doi: string): string {
+    return base.endsWith("/") ? `${base}${doi}` : `${base}/${doi}`;
   }
 
   /**

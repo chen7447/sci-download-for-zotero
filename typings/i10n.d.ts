@@ -35,6 +35,7 @@ export type FluentMessageId =
   | 'dialog-pdf-exists'
   | 'dialog-restore'
   | 'dialog-scihub-link'
+  | 'dialog-scihub-trying'
   | 'dialog-search'
   | 'dialog-title'
   | 'dialog-title-label'

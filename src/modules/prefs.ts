@@ -55,6 +55,19 @@ export function resetMirrors() {
   setPref("mirrorsVersion", DEFAULT_MIRRORS_VERSION);
   setMirrors(DEFAULT_MIRRORS);
   clearPref("mirrorPriority");
+  clearPref("lastGoodMirror");
+}
+
+// ── Sticky mirror ──
+// The last mirror that served a verified PDF; it leads the next download's
+// race, since mirror availability has temporal locality.
+
+export function getLastGoodMirror(): string {
+  return (getPref("lastGoodMirror") as string) || "";
+}
+
+export function setLastGoodMirror(url: string) {
+  setPref("lastGoodMirror", url);
 }
 
 // ── Mirror priorities ──

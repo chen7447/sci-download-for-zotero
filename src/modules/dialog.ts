@@ -1,7 +1,7 @@
 import { config } from "../../package.json";
 import { getString } from "../utils/locale";
 import { DOI_REGEX, normalizeDOI } from "../utils/doi";
-import { SciDownloadFetcher } from "./fetcher";
+import { SciDownloadFetcher, MirrorStatus } from "./fetcher";
 import { lookupCrossRef } from "./crossref";
 import { smartExtract, ExtractedMeta } from "./metadata";
 import {
@@ -14,6 +14,8 @@ import {
   getMirrorPriorities,
   setMirrorPriority,
   orderMirrors,
+  getLastGoodMirror,
+  setLastGoodMirror,
 } from "./prefs";
 
 // Toolbar buttons are per-window; Zotero normally has one main window but the
@@ -25,6 +27,15 @@ const _styledDocs = new WeakSet<Document>();
 export const ICON_URI = `chrome://${config.addonRef}/content/icons/download.svg`;
 
 const HTML_NS = "http://www.w3.org/1999/xhtml";
+
+// Mirror status cell rendering: icon + color per fetch outcome
+const MIRROR_ICONS: Record<MirrorStatus, [string, string]> = {
+  success: ["[✓]", "#2e7d32"],
+  failed: ["[✗]", "#d32f2f"],
+  notfound: ["[∅]", "#888888"],
+  error: ["[?]", "#e65100"],
+  skipped: ["–", "#aaaaaa"],
+};
 
 function dbg(msg: string) {
   const line = `[Sci-Download] ${msg}`;
@@ -849,9 +860,17 @@ async function onSearch(
       (el as HTMLElement).style.color = "";
     });
 
-    // Step 2: find PDF — real-time per-mirror feedback, in priority order.
+    // Step 2: find PDF — windows of mirrors race in parallel; the first
+    // verified PDF wins. Real-time per-mirror status in priority order.
     const prios = getMirrorPriorities();
     const { order, orderIndexOf } = orderMirrors(mirrors, prios);
+    // Sticky mirror: the last mirror that served a PDF leads the race
+    const sticky = getLastGoodMirror();
+    const stickyIdx = sticky ? order.indexOf(sticky) : -1;
+    if (stickyIdx > 0) {
+      order.unshift(order.splice(stickyIdx, 1)[0]);
+      orderIndexOf.unshift(orderIndexOf.splice(stickyIdx, 1)[0]);
+    }
     const total = order.length;
     let tried = 0;
     const pdfUrl = await SciDownloadFetcher.findPDFUrl(
@@ -862,20 +881,17 @@ async function onSearch(
         const disp = orderIndexOf[k];
         const div = statusDivs[disp] as HTMLElement | undefined;
         if (div) {
-          if (status === "success") {
-            div.textContent = "[✓]";
-            div.style.color = "#2e7d32";
-          } else {
-            div.textContent = "[✗]";
-            div.style.color = "#d32f2f";
-          }
+          const [icon, color] = MIRROR_ICONS[status];
+          div.textContent = icon;
+          div.style.color = color;
         }
+        if (status === "success") setLastGoodMirror(order[k]);
         const pct = Math.min(65, 40 + (tried / total) * 25);
         setProgress(
           progressText,
           progressBar,
           "wait",
-          `Sci-Hub ... (${tried}/${total})`,
+          s("dialog-scihub-trying", { args: { tried, total } }),
           pct,
         );
       },
