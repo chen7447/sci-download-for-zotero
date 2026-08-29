@@ -24,6 +24,7 @@ export type FluentMessageId =
   | 'dialog-info-label'
   | 'dialog-item-created'
   | 'dialog-item-exists'
+  | 'dialog-library-readonly'
   | 'dialog-mirror-col-address'
   | 'dialog-mirror-col-priority'
   | 'dialog-mirror-col-status'

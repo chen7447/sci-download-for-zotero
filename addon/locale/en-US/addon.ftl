@@ -23,6 +23,7 @@ dialog-download-fail = Download failed
 dialog-doi-invalid = Invalid DOI format
 dialog-doi-missing = Please enter a DOI
 dialog-mirror-empty = Please add at least one Sci-Hub mirror site
+dialog-library-readonly = Target library is read-only
 dialog-crossref-lookup = Looking up metadata (CrossRef)...
 dialog-scihub-trying = Trying Sci-Hub mirrors ({$tried}/{$total})...
 dialog-crossref-fail = CrossRef lookup failed — Sci-Hub will still be tried

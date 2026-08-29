@@ -523,40 +523,53 @@ function injectDialogStyles(doc: Document) {
 // ── Collection dropdown ──
 
 function fillCollectionSelect(doc: Document, select: HTMLSelectElement) {
-  const collections: any[] =
-    (Zotero.Collections as any).getByLibrary(1, true) || [];
-  const byParent = new Map<number, any[]>();
-  for (const c of collections) {
-    const key = (c as any).parentID || 0;
-    if (!byParent.has(key)) byParent.set(key, []);
-    byParent.get(key)!.push(c);
-  }
-  const flat: { id: number; name: string; depth: number }[] = [];
-  const walk = (parentID: number, depth: number) => {
-    const kids = (byParent.get(parentID) || []).sort((a: any, b: any) =>
-      a.name.localeCompare(b.name),
-    );
-    for (const k of kids) {
-      flat.push({ id: k.id, name: k.name, depth });
-      walk(k.id, depth + 1);
-    }
-  };
-  walk(0, 0);
-
+  // "No collection" pseudo-option: 库级幂等语义 (reuse/create in My Library)
   const saved = getTargetCollectionId();
-  const opt = h(
-    doc,
-    "option",
-    { value: "" },
-    getString("dialog-collection-default"),
+  select.appendChild(
+    h(doc, "option", { value: "" }, getString("dialog-collection-default")),
   );
-  select.appendChild(opt);
-  for (const c of flat) {
-    select.appendChild(
-      h(doc, "option", { value: String(c.id) }, "　".repeat(c.depth) + c.name),
-    );
+
+  // Group collections per library (My Library + group libraries)
+  let all: { id: number; name: string; depth: number }[] = [];
+  for (const lib of Zotero.Libraries.getAll()) {
+    const collections: any[] =
+      (Zotero.Collections as any).getByLibrary((lib as any).libraryID, true) ||
+      [];
+    const byParent = new Map<number, any[]>();
+    for (const c of collections) {
+      const key = (c as any).parentID || 0;
+      if (!byParent.has(key)) byParent.set(key, []);
+      byParent.get(key)!.push(c);
+    }
+    const flat: { id: number; name: string; depth: number }[] = [];
+    const walk = (parentID: number, depth: number) => {
+      const kids = (byParent.get(parentID) || []).sort((a: any, b: any) =>
+        a.name.localeCompare(b.name),
+      );
+      for (const k of kids) {
+        flat.push({ id: k.id, name: k.name, depth });
+        walk(k.id, depth + 1);
+      }
+    };
+    walk(0, 0);
+    if (flat.length === 0) continue;
+
+    const group = h(doc, "optgroup", { label: (lib as any).name });
+    for (const c of flat) {
+      group.appendChild(
+        h(
+          doc,
+          "option",
+          { value: String(c.id) },
+          "　".repeat(c.depth) + c.name,
+        ),
+      );
+    }
+    select.appendChild(group);
+    all = all.concat(flat);
   }
-  if (saved !== null && flat.some((f) => f.id === saved)) {
+
+  if (saved !== null && all.some((f) => f.id === saved)) {
     select.value = String(saved);
   }
   select.addEventListener("change", () => {

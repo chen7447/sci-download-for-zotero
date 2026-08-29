@@ -185,9 +185,19 @@ export class SciDownloadFetcher {
     collectionId: number | null,
   ): Promise<{ success: boolean; message: string }> {
     try {
-      // C1: Search entire library for DOI, then check collection
+      // The target library follows the selected collection (group libraries
+      // supported); no collection → My Library (库级幂等语义).
+      const libraryID =
+        collectionId !== null
+          ? ((Zotero.Collections.get(collectionId) as any)?.libraryID ?? 1)
+          : 1;
+      if (!(Zotero.Libraries.get(libraryID) as any)?.editable) {
+        return { success: false, message: "dialog-library-readonly" };
+      }
+
+      // C1: Search the target library for DOI, then check collection
       let targetItem: Zotero.Item | null = null;
-      const existingItem = await this.findItemByDOI(doi);
+      const existingItem = await this.findItemByDOI(doi, libraryID);
 
       if (existingItem) {
         // Check if item is already in the selected collection
@@ -204,6 +214,7 @@ export class SciDownloadFetcher {
       if (!targetItem) {
         // C2: Create new item (no match in selected collection, or no match at all)
         const item = new Zotero.Item("journalArticle");
+        item.libraryID = libraryID;
         item.setField("DOI", doi);
         if (metadata) {
           item.setField("title", metadata.title);
@@ -262,13 +273,16 @@ export class SciDownloadFetcher {
   }
 
   /**
-   * Find an existing Zotero item by DOI field, searching the entire library.
+   * Find an existing Zotero item by DOI field within one library.
    */
-  private static async findItemByDOI(doi: string): Promise<Zotero.Item | null> {
+  private static async findItemByDOI(
+    doi: string,
+    libraryID: number,
+  ): Promise<Zotero.Item | null> {
     try {
       const s = new Zotero.Search();
       s.addCondition("DOI", "is", doi);
-      s.addCondition("libraryID", "is", "1"); // My Library
+      s.addCondition("libraryID", "is", String(libraryID));
       const ids = await s.search();
       if (ids && ids.length > 0) {
         const it = Zotero.Items.get(ids[0]);

@@ -23,6 +23,7 @@ dialog-download-fail = 下载失败
 dialog-doi-invalid = DOI 格式无效
 dialog-doi-missing = 请输入 DOI
 dialog-mirror-empty = 请至少添加一个 Sci-Hub 镜像站点
+dialog-library-readonly = 目标文库只读，无法写入
 dialog-crossref-lookup = 正在查询元数据（CrossRef）...
 dialog-scihub-trying = 正在尝试 Sci-Hub 镜像（{ $tried }/{ $total }）...
 dialog-crossref-fail = CrossRef 查询失败，仍将尝试 Sci-Hub 下载
