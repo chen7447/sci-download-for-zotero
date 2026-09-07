@@ -3,6 +3,11 @@
     "scidownload@chen": {
       "updates": [
         {
+          "version": "1.4.1",
+          "update_link": "https://github.com/chen7447/sci-download-for-zotero/releases/download/v1.4.1/sci-download-1.4.1.xpi",
+          "update_hash": "sha256:619ec6d28bc73abe09b32f23d723069aca0b743cd00270a7bebe0939f48b5c90"
+        },
+        {
           "version": "1.4.0",
           "update_link": "https://github.com/chen7447/sci-download-for-zotero/releases/download/v1.4.0/sci-download-1.4.0.xpi",
           "update_hash": "sha256:4fbbafeef520b2791d9180258bbaeda9506fcf7fe0a00c521b27f68d7f6e8f81"

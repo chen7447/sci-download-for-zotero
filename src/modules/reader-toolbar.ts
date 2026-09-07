@@ -25,12 +25,18 @@ const ICON_DATA_URI =
   <path fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" d="M12 4.5 Q17 7 21 4"/>
 </svg>`);
 
+type ReaderLike = {
+  // event-path proxy exposes type/itemID; real ReaderTab exposes _type/_itemID
+  type?: string;
+  itemID?: number;
+  _type?: string;
+  _itemID?: number;
+  setToolbarPlaceholderWidth?: (w: number) => Promise<void> | void;
+  _iframeWindow?: { document?: Document };
+};
+
 type RenderToolbarEvent = {
-  reader: {
-    type?: string;
-    itemID?: number;
-    setToolbarPlaceholderWidth?: (w: number) => Promise<void> | void;
-  };
+  reader: ReaderLike;
   doc: Document;
   append: (...nodes: Array<Node | string>) => void;
 };
@@ -39,11 +45,10 @@ type Handler = (event: RenderToolbarEvent) => void;
 
 let onRenderToolbar: Handler | null = null;
 
-function renderToolbar(event: RenderToolbarEvent): void {
-  const { reader, doc, append } = event;
-  if (reader.type && reader.type !== "pdf") return;
-  if (doc.getElementById(BTN_ID)) return;
-
+function createToolbarButton(
+  doc: Document,
+  reader: ReaderLike,
+): HTMLDivElement {
   const wrap = doc.createElement("div");
   wrap.style.cssText = "position:relative;display:flex;align-items:center;";
   const btn = doc.createElement("button");
@@ -62,7 +67,9 @@ function renderToolbar(event: RenderToolbarEvent): void {
   btn.addEventListener("click", (ev) => {
     ev.preventDefault();
     ev.stopPropagation();
-    const item = reader.itemID ? Zotero.Items.get(reader.itemID) || null : null;
+    // itemID on the event-path proxy, _itemID on a real ReaderTab (retrofit path)
+    const itemID = reader.itemID ?? reader._itemID;
+    const item = itemID ? Zotero.Items.get(itemID) || null : null;
     const doi = item?.getField("DOI") ?? "";
     if (doi) {
       showDialog(doc.defaultView as Window, doi);
@@ -80,8 +87,47 @@ function renderToolbar(event: RenderToolbarEvent): void {
     }
   });
   wrap.append(btn);
-  append(wrap);
+  return wrap;
+}
+
+function renderToolbar(event: RenderToolbarEvent): void {
+  const { reader, doc, append } = event;
+  if (reader.type && reader.type !== "pdf") return;
+  if (doc.getElementById(BTN_ID)) return; // idempotent
+  append(createToolbarButton(doc, reader));
   void reader.setToolbarPlaceholderWidth?.(PLACEHOLDER);
+}
+
+/**
+ * Append the button to readers that already exist and missed the one-shot
+ * renderToolbar event (session-restored readers opened before/around plugin
+ * registration). No-op when the list is empty or toolbars aren't rendered
+ * yet — those still get the normal event path.
+ */
+export function retrofitOpenReaders(): void {
+  const readers = (Zotero as unknown as { Reader?: { _readers?: unknown[] } })
+    .Reader?._readers;
+  if (!Array.isArray(readers)) return;
+  for (const reader of readers) {
+    if (!reader || typeof reader !== "object") continue;
+    const r = reader as ReaderLike;
+    if (r._type && r._type !== "pdf") continue; // epub/snapshot readers
+    if (!r._type && r.type && r.type !== "pdf") continue;
+    const doc = r._iframeWindow?.document;
+    if (!doc) continue; // reader iframe not ready — event path will cover it
+    try {
+      // ⚠️ same container the event's append() uses: React renders
+      // createElement(custom_sections) as div.custom-sections; several
+      // instances coexist, so scope to the toolbar one.
+      const container = doc.querySelector(".toolbar .custom-sections");
+      if (!container) continue; // toolbar not rendered yet — wait for event
+      if (doc.getElementById(BTN_ID)) continue; // idempotent
+      container.append(createToolbarButton(doc, r));
+      void r.setToolbarPlaceholderWidth?.(PLACEHOLDER);
+    } catch {
+      // retrofit failure degrades to the event path for new readers
+    }
+  }
 }
 
 export function registerReaderToolbar(): void {
