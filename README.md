@@ -40,16 +40,25 @@
 ### 入口 1：文库工具栏按钮
 
 安装后，在 Zotero 文库工具栏（搜索框左侧）会出现一个[下载按钮](https://github.com/chen7447/sci-download-for-zotero/blob/master/addon/content/icons/download.svg)。点击即可打开下载面板。
+<img width="1742" height="138" alt="image" src="https://github.com/user-attachments/assets/506aaf87-adea-484d-b7ce-c9210f227169" />
+
 
 ### 入口 2：PDF 阅读器按钮
 
 在任意 PDF 阅读器界面，工具栏会显示一个[下载按钮](https://github.com/chen7447/sci-download-for-zotero/blob/master/addon/content/icons/download.svg)。点击后自动带出当前条目的 DOI 开始下载；条目没有 DOI 时会自动按标题检索补全，方便边读边补。
+<img width="2214" height="182" alt="image" src="https://github.com/user-attachments/assets/10fea329-26bd-4afe-8de6-8c3f29990c11" />
+
+
 
 ### 入口 3：条目右键菜单批量下载
 
 在文库中选中一个或多个条目 → 右键 → **下载 PDF（Sci-Download）**。插件会逐条下载并汇总结果（成功 / 已有 PDF 跳过 / 未找到 / 失败）。目标分类跟随当前左侧选中的分类；未选中分类时按「未选分类」语义处理（见下文）。
+<img width="380" height="990" alt="image" src="https://github.com/user-attachments/assets/775d0172-86ea-4c1e-80d1-60f84b8b9d49" />
+
 
 ### 智能提取文献信息
+<img width="996" height="1236" alt="image" src="https://github.com/user-attachments/assets/5e189649-9b64-4c07-b7ee-df8ccf058b98" />
+
 
 面板顶部的智能提取输入框支持三种输入方式，自动识别并填充其他字段：
 
