@@ -1,6 +1,6 @@
 {
   "name": "zotero-scidownload",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "description": "Download PDF from Sci-Hub - Zotero Plugin",
   "config": {
     "addonName": "Sci-Download",
@@ -26,7 +26,8 @@
     "lint:fix": "prettier --write . && eslint . --fix",
     "release": "zotero-plugin release",
     "test": "zotero-plugin test",
-    "update-deps": "npm update --save"
+    "update-deps": "npm update --save",
+    "test:cli": "node --test test/cli.test.mjs"
   },
   "dependencies": {
     "zotero-plugin-toolkit": "^5.1.0-beta.13"
@@ -58,5 +59,8 @@
         }
       }
     ]
+  },
+  "bin": {
+    "sci-download": "bin/sci-download.mjs"
   }
 }
