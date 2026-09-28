@@ -142,3 +142,62 @@
 
 - 参考了 [zotero-scipdf](https://github.com/syt2/zotero-scipdf) 的 Sci-Hub 抓取逻辑
 - 使用 [zotero-plugin-template](https://github.com/windingwind/zotero-plugin-template) 构建
+
+## 本地 CLI / Agent 接口（本 fork v1.4.2）
+
+需要运行 Zotero 桌面端并安装本 fork 的 XPI；CLI 需要 Node.js 20+。
+使用 Zotero 自带的本地 HTTP 服务，不另开服务器，也不依赖 MCP。
+
+### 安装与凭据
+
+```bash
+npm ci
+npm run build
+# 将 .scaffold/build 中的 XPI 安装到 Zotero，然后重启
+node bin/sci-download.mjs --help
+# 可选：注册 sci-download 命令
+npm link
+```
+
+插件首次启动生成 `extensions.zotero.scidownload.apiToken`。在 Zotero
+设置 → 高级 → 配置编辑器中复制其值，设置环境变量 `SCI_DOWNLOAD_TOKEN`，
+或写入 `~/.config/sci-download/token`（建议文件权限 `600`）。
+`--token-file PATH` 可指定凭据文件；环境变量优先。不要将令牌提交到仓库。
+
+### 一次下载多个 DOI / 补全多个条目
+
+```bash
+sci-download download '10.1038/s41586-020-2649-2' '10.1234/example' --json
+sci-download download --item-key ABCD1234 --item-key EFGH5678 --json
+# 可混合 DOI 与条目 key，添加到指定分类
+sci-download download '10.1234/example' --item-key ABCD1234 --collection IJKL1234
+# 群组文库需要 Zotero 本地 libraryID（不是 Web API group ID）
+sci-download download --item-key ABCD1234 --library 3
+```
+
+单次支持 1–100 个输入，先处理 DOI，再处理 item key，分别保持输入顺序。
+条目 key 和分类 key 均属于 `--library` 指定的文库，默认“我的文库”。
+条目缺少 DOI 时沿用标题查询；指定条目始终作为 PDF 的父条目。
+已有 PDF 跳过下载，仍按需加入指定分类。分类无效时整批拒绝，不回落到其他分类。
+单篇失败不影响后续条目；重复输入仍各自返回结果，已有附件会跳过。
+
+输出始终为 JSON，`results` 每项包含 `input`、`status`，以及可用的
+`doi`、`itemKey`、`attachmentKey`、`message`。
+状态为 `downloaded` / `skipped` / `not_found` / `failed`。
+退出码：`0` 全部成功或跳过；`1` 至少一项未找到或失败；`2` 参数、连接或 HTTP 错误。
+`--port` 默认 `23119`，`--timeout` 默认 `3600` 秒。
+客户端超时或退出不会取消 Zotero 已接受的批次；插件正在处理其他 API 批次时返回 HTTP 409。
+
+### 直接通过 HTTP 调用
+
+`POST http://127.0.0.1:23119/scidownload/download`
+
+- 请求头：`Authorization: Bearer <token>`，`Content-Type: application/json`
+- 请求体示例：`{"dois":["10.1234/example"],"itemKeys":["ABCD1234"],"libraryID":1,"collectionKey":"IJKL1234"}`
+- `dois`、`itemKeys` 至少一项非空；`libraryID`、`collectionKey` 可省略。
+- HTTP 200 表示批次已处理，需检查各项状态；400 为参数错误，403 为鉴权失败，409 为忙碌。
+- 接口拒绝携带 Origin 的浏览器请求。不要将 Zotero 本地端口公开到网络。
+
+Agent 可以通过 Zotero MCP 获取条目 key，再调用这个 CLI 补 PDF；下载与归档全部由插件在本地完成。
+
+验证命令：`npm run test:cli`、`npm run build`。
