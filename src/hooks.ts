@@ -1,3 +1,7 @@
+import {
+  registerDownloadEndpoint,
+  unregisterDownloadEndpoint,
+} from "./modules/api";
 import { createZToolkit } from "./utils/ztoolkit";
 import { initLocale } from "./utils/locale";
 import { installToolbarButton, uninstallToolbarButton } from "./modules/dialog";
@@ -39,6 +43,7 @@ async function onStartup() {
 
   retrofitOpenReaders(); // catch readers opened during init
 
+  registerDownloadEndpoint();
   addon.data.initialized = true;
 }
 
@@ -56,6 +61,7 @@ async function onMainWindowUnload(_win: Window): Promise<void> {
 }
 
 function onShutdown(): void {
+  unregisterDownloadEndpoint();
   uninstallToolbarButton();
   unregisterItemContextMenu();
   unregisterReaderToolbar();
