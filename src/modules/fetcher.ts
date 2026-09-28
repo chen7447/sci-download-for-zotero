@@ -184,14 +184,20 @@ export class SciDownloadFetcher {
     metadata: CrossRefMetadata | null,
     collectionId: number | null,
     preferredItemId?: number,
-  ): Promise<{ success: boolean; message: string }> {
+    targetLibraryID?: number,
+  ): Promise<{
+    success: boolean;
+    message: string;
+    itemKey?: string;
+    attachmentKey?: string;
+  }> {
     try {
       // The target library follows the selected collection (group libraries
       // supported); no collection → My Library.
       const libraryID =
         collectionId !== null
           ? ((Zotero.Collections.get(collectionId) as any)?.libraryID ?? 1)
-          : 1;
+          : (targetLibraryID ?? Zotero.Libraries.userLibraryID);
       if (!(Zotero.Libraries.get(libraryID) as any)?.editable) {
         return { success: false, message: "dialog-library-readonly" };
       }
@@ -200,11 +206,21 @@ export class SciDownloadFetcher {
       // existing item and add it to the selected collection when needed —
       // never create a second item for a DOI the library already has.
       let targetItem: Zotero.Item | null = null;
-      const existingItem = await this.findItemByDOI(
-        doi,
-        libraryID,
-        preferredItemId,
-      );
+      const preferredItem =
+        preferredItemId === undefined
+          ? null
+          : Zotero.Items.get(preferredItemId);
+      if (
+        preferredItemId !== undefined &&
+        (!preferredItem ||
+          preferredItem.deleted ||
+          !preferredItem.isRegularItem() ||
+          preferredItem.libraryID !== libraryID)
+      ) {
+        return { success: false, message: "Invalid target item or library" };
+      }
+      const existingItem =
+        preferredItem || (await this.findItemByDOI(doi, libraryID));
 
       if (existingItem) {
         targetItem = existingItem;
@@ -252,9 +268,13 @@ export class SciDownloadFetcher {
 
       // D: Attach PDF, but never stack a second copy on an item that has one
       if (this.hasPdfAttachment(targetItem)) {
-        return { success: true, message: "dialog-pdf-exists" };
+        return {
+          success: true,
+          message: "dialog-pdf-exists",
+          itemKey: targetItem.key,
+        };
       }
-      await Zotero.Attachments.importFromURL({
+      const attachment = await Zotero.Attachments.importFromURL({
         url: pdfUrl,
         parentItemID: targetItem.id,
         libraryID: targetItem.libraryID as number,
@@ -267,6 +287,8 @@ export class SciDownloadFetcher {
 
       return {
         success: true,
+        itemKey: targetItem.key,
+        attachmentKey: attachment.key,
         message:
           existingItem && targetItem === existingItem
             ? "dialog-item-exists"
@@ -278,28 +300,19 @@ export class SciDownloadFetcher {
     }
   }
 
-  /**
-   * Find an existing Zotero item by DOI field within one library. With
-   * multiple DOI matches (e.g. duplicates left by older versions), prefer
-   * `preferredItemId` so a batch download attaches to the item the user
-   * actually selected.
-   */
-  private static async findItemByDOI(
+  /** Find a non-deleted parent with this DOI in the requested library. */
+  static async findItemByDOI(
     doi: string,
     libraryID: number,
-    preferredItemId?: number,
   ): Promise<Zotero.Item | null> {
     try {
       const s = new Zotero.Search();
       s.addCondition("DOI", "is", doi);
       s.addCondition("libraryID", "is", String(libraryID));
+      s.addCondition("deleted", "false");
       const ids = (await s.search()) as number[];
       if (ids && ids.length > 0) {
-        const pick =
-          preferredItemId !== undefined && ids.includes(preferredItemId)
-            ? preferredItemId
-            : ids[0];
-        const it = Zotero.Items.get(pick);
+        const it = Zotero.Items.get(ids[0]);
         return it || null;
       }
       return null;

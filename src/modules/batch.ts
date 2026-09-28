@@ -1,9 +1,5 @@
 import { getString } from "../utils/locale";
-import { DOI_REGEX, normalizeDOI } from "../utils/doi";
-import { SciDownloadFetcher } from "./fetcher";
-import { lookupCrossRef } from "./crossref";
-import { lookupDOIByTitle } from "./metadata";
-import { getOrderedMirrors } from "./prefs";
+import { downloadPaper } from "./download";
 
 // The item context menu is a plain XUL menuitem appended to #zotero-itemmenu
 // (toolkit v5 dropped MenuManager), tracked per window like the toolbar button.
@@ -118,31 +114,15 @@ async function downloadForItem(
   item: any,
   collectionId: number | null,
 ): Promise<BatchOutcome> {
-  // Library-level idempotence: an item that already has a PDF is never
-  // re-downloaded, in any flow that reuses attachPdfToZotero.
-  if (SciDownloadFetcher.hasPdfAttachment(item)) return "skippedPdf";
-
-  let doi = normalizeDOI(String(item.getField("DOI") || ""));
-  if (!doi) {
-    const title = String(item.getField("title") || "");
-    if (title) doi = await lookupDOIByTitle(title);
-  }
-  if (!doi || !DOI_REGEX.test(doi)) return "failed";
-
-  const metadata = await lookupCrossRef(doi);
-  const { order } = getOrderedMirrors();
-  const pdfUrl = await SciDownloadFetcher.findPDFUrl(doi, order);
-  if (!pdfUrl) return "noPdf";
-
-  const result = await SciDownloadFetcher.attachPdfToZotero(
-    pdfUrl,
-    doi,
-    metadata,
+  const result = await downloadPaper({
+    item,
     collectionId,
-    // Prefer the selected item among same-DOI duplicates so the PDF lands
-    // where the user is looking
-    item.id as number,
-  );
-  if (!result.success) return "failed";
-  return result.message === "dialog-pdf-exists" ? "skippedPdf" : "ok";
+    libraryID: item.libraryID,
+  });
+  return {
+    downloaded: "ok",
+    skipped: "skippedPdf",
+    not_found: "noPdf",
+    failed: "failed",
+  }[result.status] as BatchOutcome;
 }
