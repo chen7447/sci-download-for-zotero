@@ -143,9 +143,9 @@
 - 参考了 [zotero-scipdf](https://github.com/syt2/zotero-scipdf) 的 Sci-Hub 抓取逻辑
 - 使用 [zotero-plugin-template](https://github.com/windingwind/zotero-plugin-template) 构建
 
-## 本地 CLI / Agent 接口（本 fork v1.4.2）
+## 本地 CLI / Agent 接口
 
-需要运行 Zotero 桌面端并安装本 fork 的 XPI；CLI 需要 Node.js 20+。
+需要运行 Zotero 桌面端并安装包含 CLI 接口的 XPI；CLI 需要 Node.js 20+。
 使用 Zotero 自带的本地 HTTP 服务，不另开服务器，也不依赖 MCP。
 
 ### 安装与凭据
